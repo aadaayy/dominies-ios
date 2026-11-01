@@ -35,3 +35,153 @@ jobs:
         shell: bash
         run: |
           grep -E "error:|failed" logic.log | head -30 | while IFS= read -r line; do echo "::error::${line//%/%25}"; done
+
+  app:
+    name: App on ${{ matrix.phone }}
+    needs: logic
+    runs-on: xcode-27
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        phone: [Pro Max, Pro, Duo]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick simulator
+        id: pick
+        env:
+          PHONE: ${{ matrix.phone }}
+        run: |
+          devices=$(xcrun simctl list devices available)
+          case "$PHONE" in
+            "Pro Max")
+              device=$(echo "$devices" | grep -oE "iPhone [0-9]+ Pro Max" | sort -u | tail -1)
+              if [ -z "$device" ]; then device=$(echo "$devices" | grep -oE "iPhone [0-9]+( Pro)?" | sort -u | tail -1); fi ;;
+            # A regular-size phone (iPhone N Pro, not Max)
+            "Pro") device=$(echo "$devices" | grep -oE "iPhone [0-9]+ Pro \(" | sed 's/ ($//' | sort -u | tail -1) ;;
+            "Duo") device=$(echo "$devices" | grep -oE "iPhone Duo[^(]*" | sed 's/ *$//' | sort -u | head -1) ;;
+          esac
+          echo "::notice title=Tools::$(xcodebuild -version | tr '\n' ' ')| simulator: ${device:-no $PHONE simulator}"
+          echo "device=$device" >> "$GITHUB_OUTPUT"
+
+      - name: Start the simulator
+        # Booting while the tests start can time out the test runner, so boot first.
+        if: steps.pick.outputs.device != ''
+        env:
+          DEVICE: ${{ steps.pick.outputs.device }}
+        run: |
+          python3 - <<'PYBOOT'
+          import json, os, subprocess
+          name = os.environ["DEVICE"]
+          listing = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
+          udid = None
+          for runtime, devices in sorted(listing["devices"].items()):
+              for d in devices:
+                  if d["name"] == name:
+                      udid = d["udid"]  # newest runtime wins
+          subprocess.run(["xcrun", "simctl", "boot", udid])
+          subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True, timeout=900)
+          print(f"{name} booted")
+          PYBOOT
+
+      - name: Build and walk through the app
+        if: steps.pick.outputs.device != ''
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Dominoes.xcodeproj \
+            -scheme Dominoes \
+            -destination "platform=iOS Simulator,name=${{ steps.pick.outputs.device }}" \
+            -resultBundlePath build/Checks.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Report build errors and test failures
+        if: failure()
+        run: |
+          # Run logs can't always be opened, so surface the first errors as annotations.
+          [ -d build/Checks.xcresult ] || exit 0
+          xcrun xcresulttool get build-results --path build/Checks.xcresult > build/build-results.json || true
+          xcrun xcresulttool get test-results summary --path build/Checks.xcresult > build/test-summary.json || true
+          python3 - <<'PY'
+          import json
+          def load(p):
+              try: return json.load(open(p))
+              except Exception: return {}
+          b = load("build/build-results.json")
+          for e in (b.get("errors") or [])[:15]:
+              where = e.get("sourceURL", "").split("#")[0].split("/")[-1]
+              print(f"::error title=Build error {where}::{e.get('message', '')}".replace("\n", " "))
+          t = load("build/test-summary.json")
+          for f in (t.get("testFailures") or [])[:15]:
+              print(f"::error title=Test failed {f.get('testName', '')}::{f.get('targetName', '')} {f.get('failureText', '')}".replace("\n", " "))
+          PY
+
+      - name: Collect screenshots
+        if: always()
+        run: |
+          mkdir -p screenshots
+          if [ -d build/Checks.xcresult ]; then
+            xcrun xcresulttool export attachments --path build/Checks.xcresult --output-path screenshots || true
+          fi
+          ls -la screenshots
+
+      - name: Name and turn the screenshots
+        if: always()
+        run: |
+          shopt -s nullglob
+          mkdir -p publish
+          [ -f screenshots/manifest.json ] || exit 0
+          # Name each picture after its simulator and step, e.g. "iPhone Duo - 4-long-line.png"
+          python3 - <<'PYNAME'
+          import json, shutil
+          for test in json.load(open("screenshots/manifest.json")):
+              for a in test.get("attachments", []):
+                  try:
+                      step = a["suggestedHumanReadableName"].split("_0_")[0]
+                      step = "".join(c for c in step if c not in '"<>|*?:\\/\r\n')
+                      shutil.copy(f"screenshots/{a['exportedFileName']}", f"publish/{a.get('deviceName', 'iPhone')} - {step}.png")
+                  except Exception as error:
+                      print(f"::warning title=Screenshot skipped::{error}")
+          PYNAME
+          # Simulator screenshots are always upright; turn the sideways ones
+          for f in publish/*sideways*.png publish/*open-duo*.png; do sips -r 270 "$f" >/dev/null || echo "::warning title=Not turned::$f"; done
+          files=(publish/*.png)
+          echo "::notice title=Screenshots::${#files[@]} exported on ${{ matrix.phone }}"
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ strategy.job-index }}
+          path: publish
+          retention-days: 7
+          if-no-files-found: ignore
+
+  publish:
+    name: Publish screenshots
+    needs: app
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # only to publish screenshots to the screenshots branch
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: screenshots-*
+          path: publish
+          merge-multiple: true
+
+      - name: Publish screenshots to the screenshots branch
+        run: |
+          shopt -s nullglob
+          files=(publish/*.png)
+          echo "::notice title=Screenshots::${#files[@]} published"
+          [ ${#files[@]} -eq 0 ] && exit 0
+          cd publish
+          git init -q -b screenshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Screenshots from ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screenshots
