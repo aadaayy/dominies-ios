@@ -138,6 +138,8 @@ jobs:
           for test in json.load(open("screenshots/manifest.json")):
               for a in test.get("attachments", []):
                   try:
+                      if not a["exportedFileName"].lower().endswith(".png") or any(w in a["suggestedHumanReadableName"] for w in ("Screen Recording", "Synthesized Event", "Debug description", "UI Snapshot")):
+                          continue
                       step = a["suggestedHumanReadableName"].split("_0_")[0]
                       step = "".join(c for c in step if c not in '"<>|*?:\\/\r\n')
                       shutil.copy(f"screenshots/{a['exportedFileName']}", f"publish/{a.get('deviceName', 'iPhone')} - {step}.png")

@@ -144,6 +144,7 @@ struct GameView: View {
                     .ignoresSafeArea(edges: .bottom)
                     .shadow(color: .black.opacity(0.05), radius: 8, y: -2)
             )
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("hand")
     }
 
@@ -233,30 +234,37 @@ struct SeatChip: View {
     let note: String?
 
     var body: some View {
-        HStack(spacing: 8) {
-            ZStack {
-                Circle().fill(Theme.color(for: team).opacity(0.15))
-                Text(String(name.prefix(1)))
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Theme.color(for: team))
-            }
-            .frame(width: 28, height: 28)
-            .overlay {
-                Circle().strokeBorder(Theme.color(for: team), lineWidth: isTurn ? 2 : 0)
-            }
+        HStack(spacing: 6) {
+            Circle()
+                .fill(Theme.color(for: team))
+                .frame(width: 8, height: 8)
+                .overlay {
+                    Circle().strokeBorder(Theme.color(for: team).opacity(0.35), lineWidth: isTurn ? 6 : 0)
+                        .frame(width: 16, height: 16)
+                }
+                .frame(width: 16, height: 16)
             VStack(alignment: .leading, spacing: 1) {
-                Text(name).font(.footnote.weight(.semibold))
-                Text(note ?? "\(tiles) tiles")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Text(name)
+                    .font(.footnote.weight(.semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if let note {
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
             }
+            .layoutPriority(1)
             Spacer(minLength: 0)
             Text("\(tiles)")
                 .font(.caption.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.secondary)
+                .fixedSize()
         }
-        .padding(.horizontal, 10)
+        .frame(minHeight: 28)
+        .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))

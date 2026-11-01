@@ -46,6 +46,8 @@ struct TableView: View {
             .frame(width: size.width, height: size.height, alignment: .topLeading)
             .animation(.spring(duration: 0.35), value: board.count)
         }
+        // Contain the tiles rather than renaming them all "table".
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("table")
     }
 
