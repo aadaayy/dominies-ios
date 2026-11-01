@@ -1,0 +1,37 @@
+# Automatic checks on every push to main.
+#  1. Logic tests: the rules, the computer players and the no-overlap table
+#     layout, on Linux (cheap and fast).
+#  2. App build and walk-through: builds the iPhone app and plays through it on
+#     iPhone Pro Max, iPhone Pro and iPhone Duo simulators, one Mac per phone.
+#  3. Publish: gathers every phone's screenshots onto the screenshots branch.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  logic:
+    name: Logic tests
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run logic tests
+        run: swift test 2>&1 | tee logic.log; exit ${PIPESTATUS[0]}
+        shell: bash
+      - name: Report failures
+        if: failure()
+        shell: bash
+        run: |
+          grep -E "error:|failed" logic.log | head -30 | while IFS= read -r line; do echo "::error::${line//%/%25}"; done
