@@ -41,9 +41,14 @@ struct TableView: View {
                                     .strokeBorder(Color.accentColor.opacity(0.55), lineWidth: max(1.5, frame.unit * 0.08))
                             }
                         }
+                        // Name the tile itself (before positioning, which
+                        // would stretch the element over the whole table).
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(tile.tile.low) and \(tile.tile.high)")
+                        .accessibilityIdentifier("table-tile-\(tile.tile.id)")
                         .position(x: rect.midX, y: rect.midY)
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
-                        .accessibilityIdentifier("table-tile-\(tile.tile.id)")
+                        .allowsHitTesting(false)
                 }
                 if let endChoice, let ends = endTargets(laid: laid, frame: frame) {
                     endButton(.left, value: endChoice.left, at: ends.left, unit: frame.unit)
@@ -56,12 +61,15 @@ struct TableView: View {
             .offset(pan)
             .frame(width: size.width, height: size.height)
             .clipped()
-            .contentShape(Rectangle())
-            // Keep the tiles' own names instead of handing one to the zoom layer.
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("table-zoom")
-            .gesture(pinch(in: size))
-            .simultaneousGesture(drag(in: size), including: zoom > 1 ? .all : .subviews)
+            // Pinch and drag land on a layer underneath (the tiles let
+            // touches through), so the tiles keep their own identities.
+            .background {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(pinch(in: size))
+                    .simultaneousGesture(drag(in: size), including: zoom > 1 ? .all : .none)
+                    .accessibilityHidden(true)
+            }
             .overlay(alignment: .topTrailing) {
                 if zoom > 1 {
                     Button(action: zoomOut) {
