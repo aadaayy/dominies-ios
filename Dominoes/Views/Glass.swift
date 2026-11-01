@@ -13,7 +13,7 @@ extension View {
                 ZStack {
                     shape.fill(.ultraThinMaterial)
                     if let tint { shape.fill(tint) }
-                    shape.strokeBorder(.white.opacity(0.35), lineWidth: 0.5)
+                    shape.stroke(.white.opacity(0.35), lineWidth: 0.5)
                 }
             }
         }
