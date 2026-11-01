@@ -57,6 +57,9 @@ struct TableView: View {
             .frame(width: size.width, height: size.height)
             .clipped()
             .contentShape(Rectangle())
+            // Keep the tiles' own names instead of handing one to the zoom layer.
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("table-zoom")
             .gesture(pinch(in: size))
             .simultaneousGesture(drag(in: size), including: zoom > 1 ? .all : .subviews)
             .overlay(alignment: .topTrailing) {
