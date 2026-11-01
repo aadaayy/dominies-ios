@@ -99,18 +99,25 @@ final class LayoutTests: XCTestCase {
         return other.rect.midX < tile.rect.midX ? tile.firstFace : tile.secondFace
     }
 
-    /// A board whose arms are `length` tiles each, built so every tile fits.
+    /// A board whose arms are `length` tiles each. Every plain tile brings a
+    /// new number, so the made-up tiles never repeat.
     private func makeBoard(length: Int, doubleWhen: (Int) -> Bool) -> Board {
         var board = Board()
         board.place(Tile(0, 1), on: nil)
-        var used: Set<Tile> = [Tile(0, 1)]
+        var fresh = 100
         for end in [End.left, .right] {
+            var lastWasDouble = false
             for step in 0..<length {
                 let open = board.open(end)!
-                // Pick an unused tile with this number (a double when asked).
-                let candidates = Tile.fullSet(highest: 30).filter { $0.has(open) && !used.contains($0) }
-                let tile = doubleWhen(step) ? (candidates.first { $0.isDouble } ?? candidates[0]) : (candidates.first { !$0.isDouble } ?? candidates[0])
-                used.insert(tile)
+                let tile: Tile
+                if doubleWhen(step) && !lastWasDouble {
+                    tile = Tile(open, open)
+                    lastWasDouble = true
+                } else {
+                    fresh += 1
+                    tile = Tile(open, fresh)
+                    lastWasDouble = false
+                }
                 board.place(tile, on: end)
             }
         }
