@@ -11,7 +11,8 @@ final class WalkthroughUITests: XCTestCase {
     private static var device: String { ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? "" }
     private static var isDuo: Bool { device.contains("Duo") }
 
-    /// Home, choosing who leads, and a few real turns.
+    /// Home, choosing who leads (with the whole hand of ten in view), and a
+    /// few real turns. Upright: two rows of five on narrow screens.
     @MainActor
     func testPlayingAGame() throws {
         let app = launch(["-seed", "11", "-firstTeam", "us", "-botDelay", "0.3"])
@@ -22,7 +23,9 @@ final class WalkthroughUITests: XCTestCase {
 
         let leadMe = app.buttons["lead-me"]
         XCTAssertTrue(leadMe.waitForExistence(timeout: 5), "Your team should be asked who leads")
+        sleep(1)
         capture("2-who-leads")
+        assertWholeHandShows(app)
         leadMe.tap()
 
         // Take three turns (or knock when there's nothing to play).
@@ -49,17 +52,33 @@ final class WalkthroughUITests: XCTestCase {
     }
 
     /// A long line with several turns: the old game's overlap bug. Checks the
-    /// tiles' real positions on screen as well as taking pictures.
+    /// tiles' real positions on screen as well as taking pictures, pinches in
+    /// to zoom, and turns the phone sideways.
     @MainActor
     func testLongLineHasNoOverlaps() throws {
         let app = launch(["-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
-        XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
+        let table = app.descendants(matching: .any)["table"]
+        XCTAssertTrue(table.waitForExistence(timeout: 20))
         sleep(1)
         XCTAssertGreaterThanOrEqual(tilesOnTable(app).count, 20, "The demo should have put a long line down")
         capture("4-long-line")
         try assertNoTilesOverlap(app)
 
-        // The Duo's folded screen may not turn sideways; the other phones must.
+        // Pinch to zoom in, then tap the button that shows the whole line again.
+        let before = tilesOnTable(app).first?.frame.width ?? 0
+        table.pinch(withScale: 2.5, velocity: 1.5)
+        let fit = app.buttons["zoom-fit"]
+        XCTAssertTrue(fit.waitForExistence(timeout: 3), "Pinching should zoom in")
+        sleep(1)
+        let after = tilesOnTable(app).first?.frame.width ?? 0
+        XCTAssertGreaterThan(after, before * 1.3, "Tiles should look bigger after zooming in")
+        capture("4z-zoomed-in")
+        try assertNoTilesOverlap(app)
+        fit.tap()
+        sleep(1)
+        XCTAssertFalse(fit.exists, "The whole line should show again")
+
+        // The phones play sideways too; the folded Duo stays upright.
         if !Self.isDuo {
             XCUIDevice.shared.orientation = .landscapeLeft
             sleep(2)
@@ -67,6 +86,18 @@ final class WalkthroughUITests: XCTestCase {
             try assertNoTilesOverlap(app)
             XCUIDevice.shared.orientation = .portrait
         }
+    }
+
+    /// Sideways, a full hand of ten fits in one row.
+    @MainActor
+    func testSidewaysWholeHand() throws {
+        try XCTSkipIf(Self.isDuo, "The folded Duo plays upright")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launch(["-seed", "11", "-startGame", "-firstTeam", "us"])
+        XCTAssertTrue(app.buttons["lead-me"].waitForExistence(timeout: 20))
+        sleep(1)
+        capture("5b-sideways-who-leads")
+        assertWholeHandShows(app)
     }
 
     /// A finished game: the result card with everyone's leftover tiles.
@@ -85,11 +116,12 @@ final class WalkthroughUITests: XCTestCase {
         }
     }
 
-    /// The open iPhone Duo, drawn at its real size and shrunk to fit a sideways
-    /// Pro Max, since the Duo simulator can't be unfolded here.
+    /// The open iPhone Duo and the smallest iPhone on its side, each drawn
+    /// at its real size and shrunk to fit a sideways Pro Max, since the Duo
+    /// simulator can't be unfolded here.
     @MainActor
-    func testOpenDuoLayouts() throws {
-        try XCTSkipUnless(Self.device.contains("Pro Max"), "The open Duo pictures are taken on the Pro Max only")
+    func testOtherScreenSizes() throws {
+        try XCTSkipUnless(Self.device.contains("Pro Max"), "These pictures are taken on the Pro Max only")
         XCUIDevice.shared.orientation = .landscapeLeft
         var app = launch(["-openDuoPreview", "-seed", "11"])
         XCTAssertTrue(app.buttons["play"].waitForExistence(timeout: 20))
@@ -97,11 +129,26 @@ final class WalkthroughUITests: XCTestCase {
         capture("7-open-duo-home")
         app.terminate()
 
+        app = launch(["-openDuoPreview", "-seed", "11", "-startGame", "-firstTeam", "us"])
+        XCTAssertTrue(app.buttons["lead-me"].waitForExistence(timeout: 20))
+        sleep(1)
+        capture("7b-open-duo-who-leads")
+        assertWholeHandShows(app)
+        app.terminate()
+
         app = launch(["-openDuoPreview", "-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
         XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
         sleep(1)
         capture("8-open-duo-long-line")
         try assertNoTilesOverlap(app)
+        app.terminate()
+
+        // iPhone SE (the smallest iPhone that runs the app), on its side.
+        app = launch(["-previewSize", "667x375", "-seed", "11", "-startGame", "-firstTeam", "us"])
+        XCTAssertTrue(app.buttons["lead-me"].waitForExistence(timeout: 20))
+        sleep(1)
+        capture("9-small-phone-sideways-who-leads")
+        assertWholeHandShows(app)
     }
 
     // MARK: - Helpers
@@ -135,6 +182,27 @@ final class WalkthroughUITests: XCTestCase {
             usleep(200_000)
         }
         return false
+    }
+
+    /// All ten tiles of a fresh hand are on screen, none cut off, none
+    /// covering another, and big enough to read.
+    @MainActor
+    private func assertWholeHandShows(_ app: XCUIApplication) {
+        let tiles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'hand-tile-'")).allElementsBoundByIndex
+        XCTAssertEqual(tiles.count, 10, "A full hand should show ten tiles")
+        let screen = app.windows.firstMatch.frame
+        let frames = tiles.map(\.frame)
+        for frame in frames {
+            XCTAssertTrue(screen.insetBy(dx: -1, dy: -1).contains(frame), "A hand tile is cut off: \(frame) on \(screen)")
+            XCTAssertGreaterThanOrEqual(min(frame.width, frame.height), 26, "Hand tiles are too small: \(frame)")
+        }
+        for i in frames.indices {
+            for j in frames.indices where j > i {
+                let shared = frames[i].intersection(frames[j])
+                XCTAssertTrue(shared.isNull || shared.width < 0.5 || shared.height < 0.5,
+                              "Two hand tiles overlap: \(frames[i]) and \(frames[j])")
+            }
+        }
     }
 
     /// Reads where every tile really is on screen and fails if any two cover

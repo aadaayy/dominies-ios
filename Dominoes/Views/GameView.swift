@@ -9,10 +9,13 @@ struct GameView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let wide = geometry.size.width > geometry.size.height * 1.3 && geometry.size.height < 500
+            // Sideways phones and the open Duo get the wide layout; upright
+            // phones and the folded Duo stack everything.
+            let size = geometry.size
+            let wide = size.width > size.height * 1.2
             ZStack {
                 Backdrop()
-                if wide { sideways } else { upright }
+                if wide { sideways(size) } else { upright(size) }
                 overlays
             }
         }
@@ -22,20 +25,30 @@ struct GameView: View {
 
     // MARK: - Layouts
 
-    private var upright: some View {
-        VStack(spacing: 10) {
+    /// Hand tray padding: above the tiles and below them.
+    private static let trayPadding: (top: CGFloat, bottom: CGFloat) = (14, 6)
+
+    private func upright(_ size: CGSize) -> some View {
+        // On a narrow screen the hand is two rows of five, so all ten show.
+        let rows = size.width < 600 ? 2 : 1
+        let perRow: CGFloat = rows == 2 ? 5 : 10
+        let byWidth = (size.width - 24 - HandView.spacing * (perRow - 1)) / perRow
+        let tileWidth = min(rows == 2 ? 40 : 44, byWidth, size.height * 0.055)
+        let handHeight = HandView.height(rows: rows, tileWidth: tileWidth) + Self.trayPadding.top + Self.trayPadding.bottom
+        return VStack(spacing: 10) {
             topBar
             seats(axis: .horizontal)
                 .glassGroup()
                 .padding(.horizontal)
             table
             statusLine
-            hand.frame(height: 110)
+            hand(rows: rows).frame(height: handHeight)
         }
     }
 
-    private var sideways: some View {
-        HStack(spacing: 0) {
+    private func sideways(_ size: CGSize) -> some View {
+        let handHeight = min(140, max(96, size.height * 0.26))
+        return HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     closeButton
@@ -51,7 +64,7 @@ struct GameView: View {
             .padding(.leading, 8)
             VStack(spacing: 6) {
                 table
-                hand.frame(height: 88)
+                hand(rows: 1).frame(height: handHeight)
             }
         }
     }
@@ -138,15 +151,16 @@ struct GameView: View {
         .glassPanel(Capsule())
     }
 
-    private var hand: some View {
+    private func hand(rows: Int) -> some View {
         HandView(tiles: controller.yourHand,
                  playable: Set(controller.yourMoves.map(\.tile)),
                  isYourTurn: controller.isYourTurn,
                  selected: controller.pendingTile,
+                 rows: rows,
                  onTap: { controller.tap($0) })
             .padding(.horizontal, 12)
-            .padding(.top, 14)
-            .padding(.bottom, 6)
+            .padding(.top, Self.trayPadding.top)
+            .padding(.bottom, Self.trayPadding.bottom)
             .background {
                 Color.clear
                     .glassPanel(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous))
@@ -297,6 +311,8 @@ struct Dimmed<Content: View>: View {
                 .frame(maxWidth: 380)
                 .glassPanel(RoundedRectangle(cornerRadius: 32, style: .continuous))
                 .padding(24)
+                // Undimmed cards sit above the hand so your tiles stay in view.
+                .padding(.bottom, dims ? 0 : 120)
         }
         .transition(.opacity)
     }

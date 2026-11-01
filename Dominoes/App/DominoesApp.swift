@@ -4,8 +4,8 @@ import SwiftUI
 struct DominoesApp: App {
     var body: some Scene {
         WindowGroup {
-            if LaunchOptions.current.openDuoPreview {
-                OpenDuoPreview { RootView() }
+            if let size = LaunchOptions.current.previewSize {
+                ScreenPreview(screen: size) { RootView() }
             } else {
                 RootView()
             }
@@ -41,21 +41,21 @@ struct RootView: View {
     }
 }
 
-/// The app drawn at the size of the open iPhone Duo's screen (about 951 by 669
-/// points), shrunk to fit whatever simulator runs it. The automatic checks
-/// can't unfold the Duo simulator, so they screenshot this to show the open
-/// layout. Used only when the app is launched with -openDuoPreview.
-struct OpenDuoPreview<Content: View>: View {
-    static var openScreen: CGSize { CGSize(width: 951, height: 669) }
+/// The app drawn at another phone's screen size, shrunk to fit whatever
+/// simulator runs it. The automatic checks can't unfold the Duo simulator,
+/// so they use this to show the open Duo (about 951 by 669 points) and the
+/// smallest iPhone. Used only with -openDuoPreview or -previewSize.
+struct ScreenPreview<Content: View>: View {
+    let screen: CGSize
     @ViewBuilder var content: Content
 
     var body: some View {
         GeometryReader { geometry in
-            let scale = min(geometry.size.width / Self.openScreen.width, geometry.size.height / Self.openScreen.height)
+            let scale = min(geometry.size.width / screen.width, geometry.size.height / screen.height)
             content
-                .frame(width: Self.openScreen.width, height: Self.openScreen.height)
-                .environment(\.horizontalSizeClass, .regular)
-                .environment(\.verticalSizeClass, .regular)
+                .padding(.top, 8)
+                .frame(width: screen.width, height: screen.height)
+                .clipped()
                 .scaleEffect(scale)
                 .frame(width: geometry.size.width, height: geometry.size.height)
         }

@@ -14,6 +14,13 @@ struct TableView: View {
     /// The tile length the layout aims for, in points.
     static let idealTileLength = 56.0
 
+    /// Pinch to look closer; the view goes back to the whole line after
+    /// every tile played.
+    @State private var zoom: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    @State private var zoomAtPinchStart: CGFloat?
+    @State private var panAtDragStart: CGSize?
+
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
@@ -45,10 +52,75 @@ struct TableView: View {
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
             .animation(.spring(duration: 0.35), value: board.count)
+            .scaleEffect(zoom)
+            .offset(pan)
+            .frame(width: size.width, height: size.height)
+            .clipped()
+            .contentShape(Rectangle())
+            .gesture(pinch(in: size))
+            .simultaneousGesture(drag(in: size), including: zoom > 1 ? .all : .subviews)
+            .overlay(alignment: .topTrailing) {
+                if zoom > 1 {
+                    Button(action: zoomOut) {
+                        Image(systemName: "arrow.down.right.and.arrow.up.left")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, height: 36)
+                            .glassPanel(Circle(), interactive: true)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(8)
+                    .transition(.scale.combined(with: .opacity))
+                    .accessibilityIdentifier("zoom-fit")
+                    .accessibilityLabel("Show the whole line")
+                }
+            }
+            .onChange(of: board.count) { zoomOut() }
         }
         // Contain the tiles rather than renaming them all "table".
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("table")
+    }
+
+    // MARK: - Zoom
+
+    private func zoomOut() {
+        withAnimation(.spring(duration: 0.45)) {
+            zoom = 1
+            pan = .zero
+        }
+    }
+
+    private func pinch(in size: CGSize) -> some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                let start = zoomAtPinchStart ?? zoom
+                zoomAtPinchStart = start
+                zoom = min(4, max(1, start * value.magnification))
+                pan = clamped(pan, in: size)
+            }
+            .onEnded { _ in
+                zoomAtPinchStart = nil
+                if zoom < 1.05 { zoomOut() }
+            }
+    }
+
+    private func drag(in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                let start = panAtDragStart ?? pan
+                panAtDragStart = start
+                pan = clamped(CGSize(width: start.width + value.translation.width,
+                                     height: start.height + value.translation.height), in: size)
+            }
+            .onEnded { _ in panAtDragStart = nil }
+    }
+
+    /// Keeps the zoomed line from sliding off the table.
+    private func clamped(_ offset: CGSize, in size: CGSize) -> CGSize {
+        let maxX = size.width * (zoom - 1) / 2
+        let maxY = size.height * (zoom - 1) / 2
+        return CGSize(width: min(maxX, max(-maxX, offset.width)), height: min(maxY, max(-maxY, offset.height)))
     }
 
     /// Converts table units to points: a scale and an offset.

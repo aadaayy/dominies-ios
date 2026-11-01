@@ -10,6 +10,8 @@ Double Nine dominoes for iPhone Duo and regular iPhones: you and your partner ag
 4. You must play when you can. With nothing to play you knock (it knocks for you after a moment). Four knocks in a row block the game.
 5. Going out wins the opponents' leftover pips. A blocked game goes to the lighter team, which wins the other team's pips. A tie scores nothing and is played again.
 6. When a tile fits both ends, the two ends light up and you tap the one you want.
+7. Play upright or sideways. Upright (and on the folded Duo) your ten tiles sit in two rows of five; sideways (and on the open Duo) they sit in one row with the players on the left.
+8. Pinch the table to zoom in and drag to look around. After every tile played it zooms back out to the whole line.
 
 ## How the code is laid out
 
