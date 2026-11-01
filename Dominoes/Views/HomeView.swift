@@ -10,7 +10,7 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            Theme.table.ignoresSafeArea()
+            Backdrop()
             VStack(spacing: 32) {
                 Spacer(minLength: 0)
                 VStack(spacing: 18) {
@@ -48,7 +48,7 @@ struct HomeView: View {
                         .frame(maxWidth: 240)
                     }
                 }
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .glassPanel(RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .frame(maxWidth: 440)
 
                 Button {
@@ -59,7 +59,7 @@ struct HomeView: View {
                         .frame(maxWidth: 440)
                         .padding(.vertical, 6)
                 }
-                .buttonStyle(.borderedProminent)
+                .prominentGlassButton()
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
                 .accessibilityIdentifier("play")

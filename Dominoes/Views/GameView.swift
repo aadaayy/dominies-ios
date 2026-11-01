@@ -11,7 +11,7 @@ struct GameView: View {
         GeometryReader { geometry in
             let wide = geometry.size.width > geometry.size.height * 1.3 && geometry.size.height < 500
             ZStack {
-                Theme.table.ignoresSafeArea()
+                Backdrop()
                 if wide { sideways } else { upright }
                 overlays
             }
@@ -26,6 +26,7 @@ struct GameView: View {
         VStack(spacing: 10) {
             topBar
             seats(axis: .horizontal)
+                .glassGroup()
                 .padding(.horizontal)
             table
             statusLine
@@ -42,6 +43,7 @@ struct GameView: View {
                 }
                 ScoreView(match: controller.match)
                 seats(axis: .vertical)
+                    .glassGroup()
                 Spacer(minLength: 0)
                 statusLine
             }
@@ -61,6 +63,9 @@ struct GameView: View {
             closeButton
             Spacer()
             ScoreView(match: controller.match)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .glassPanel(Capsule())
             Spacer()
             Text("Game \(controller.match.gameNumber)")
                 .font(.footnote.weight(.medium))
@@ -76,9 +81,10 @@ struct GameView: View {
             Image(systemName: "xmark")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 32, height: 32)
-                .background(Theme.surface, in: Circle())
+                .frame(width: 36, height: 36)
+                .glassPanel(Circle(), interactive: true)
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier("close-game")
         .accessibilityLabel("Leave game")
         .frame(width: 64, alignment: .leading)
@@ -117,16 +123,19 @@ struct GameView: View {
                 .accessibilityIdentifier("status")
             if controller.isYourTurn && controller.yourMoves.isEmpty {
                 Button("Knock") { controller.knock() }
-                    .buttonStyle(.borderedProminent)
+                    .prominentGlassButton()
                     .controlSize(.small)
                     .accessibilityIdentifier("knock")
             }
             if controller.pendingTile != nil {
                 Button("Cancel") { controller.cancelPending() }
+                    .glassButton()
                     .controlSize(.small)
             }
         }
-        .frame(height: 30)
+        .padding(.horizontal, 14)
+        .frame(height: 32)
+        .glassPanel(Capsule())
     }
 
     private var hand: some View {
@@ -138,12 +147,11 @@ struct GameView: View {
             .padding(.horizontal, 12)
             .padding(.top, 14)
             .padding(.bottom, 6)
-            .background(
-                UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24, style: .continuous)
-                    .fill(Theme.surface)
+            .background {
+                Color.clear
+                    .glassPanel(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous))
                     .ignoresSafeArea(edges: .bottom)
-                    .shadow(color: .black.opacity(0.05), radius: 8, y: -2)
-            )
+            }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("hand")
     }
@@ -267,7 +275,8 @@ struct SeatChip: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .glassPanel(RoundedRectangle(cornerRadius: 16, style: .continuous),
+                    tint: isTurn ? Theme.color(for: team).opacity(0.25) : nil)
         .animation(.easeInOut(duration: 0.2), value: isTurn)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("seat-\(name)")
@@ -286,7 +295,7 @@ struct Dimmed<Content: View>: View {
             content
                 .padding(24)
                 .frame(maxWidth: 380)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .glassPanel(RoundedRectangle(cornerRadius: 32, style: .continuous))
                 .padding(24)
         }
         .transition(.opacity)
@@ -309,12 +318,12 @@ struct StarterCard: View {
                 Button { onChoose(false) } label: {
                     Text("I'll lead").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .prominentGlassButton()
                 .accessibilityIdentifier("lead-me")
                 Button { onChoose(true) } label: {
                     Text("Partner leads").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .glassButton()
                 .accessibilityIdentifier("lead-partner")
             }
             .controlSize(.large)

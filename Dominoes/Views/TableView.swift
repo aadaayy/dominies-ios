@@ -96,9 +96,8 @@ struct TableView: View {
             Text("\(value)")
                 .font(.system(size: max(13, unit * 0.7), weight: .semibold, design: .rounded))
                 .frame(width: max(34, unit * 1.6), height: max(34, unit * 1.6))
-                .background(.tint, in: Circle())
                 .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                .glassPanel(Circle(), tint: .accentColor, interactive: true)
         }
         .buttonStyle(.plain)
         .position(point)

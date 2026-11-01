@@ -5,7 +5,7 @@ import UIKit
 enum Theme {
     /// The table: the system's grouped background (light grey, near black in dark mode).
     static let table = Color(uiColor: .systemGroupedBackground)
-    /// Cards and trays sitting on the table.
+    /// Solid cards (glass is used for panels, see Glass.swift).
     static let surface = Color(uiColor: .secondarySystemGroupedBackground)
 
     static let us = Color.blue

@@ -34,14 +34,14 @@ struct ResultCard: View {
                 Button(action: onDone) {
                     Text("Done").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .prominentGlassButton()
                 .controlSize(.large)
                 .accessibilityIdentifier("done")
             } else {
                 Button(action: onNext) {
                     Text("Next game").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .prominentGlassButton()
                 .controlSize(.large)
                 .accessibilityIdentifier("next-game")
             }
