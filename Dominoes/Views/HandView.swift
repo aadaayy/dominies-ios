@@ -11,11 +11,11 @@ struct HandView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let count = max(tiles.count, 7)
-            let spacing = 6.0
-            let byWidth = (geometry.size.width - spacing * Double(count - 1)) / Double(count)
+            let count = CGFloat(max(tiles.count, 7))
+            let spacing: CGFloat = 6
+            let byWidth = (geometry.size.width - spacing * (count - 1)) / count
             let byHeight = (geometry.size.height - 12) / 2
-            let width = max(18, min(46, byWidth, byHeight))
+            let width: CGFloat = max(18, min(46, byWidth, byHeight))
             HStack(spacing: spacing) {
                 ForEach(tiles) { tile in
                     let canPlay = playable.contains(tile)

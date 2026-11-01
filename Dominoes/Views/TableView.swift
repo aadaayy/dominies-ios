@@ -17,7 +17,7 @@ struct TableView: View {
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
-            let halfWidth = BoardLayout.halfWidth(forTableWidth: size.width, idealTileLength: Self.idealTileLength)
+            let halfWidth = BoardLayout.halfWidth(forTableWidth: Double(size.width), idealTileLength: Self.idealTileLength)
             let laid = BoardLayout.lay(board, halfWidth: halfWidth)
             let frame = Self.frame(for: laid, halfWidth: halfWidth, size: size)
 
@@ -25,7 +25,7 @@ struct TableView: View {
                 ForEach(laid) { tile in
                     let rect = frame.convert(tile.rect)
                     // A hairline gap shows where tiles meet.
-                    let gap = frame.unit * 0.05
+                    let gap = CGFloat(frame.unit * 0.05)
                     DominoView(first: tile.firstFace, second: tile.secondFace, isVertical: tile.isVertical)
                         .frame(width: rect.width - gap * 2, height: rect.height - gap * 2)
                         .overlay {
@@ -66,8 +66,8 @@ struct TableView: View {
     /// and the opening tile stays in the middle, so nothing jumps around.
     static func frame(for laid: [LaidTile], halfWidth: Double, size: CGSize) -> Frame {
         let margin = 8.0
-        let width = max(1, size.width - margin * 2)
-        let height = max(1, size.height - margin * 2)
+        let width = max(1, Double(size.width) - margin * 2)
+        let height = max(1, Double(size.height) - margin * 2)
         // The resting view: the full row width (plus the turn columns), centred.
         let restingWidth = halfWidth * 2 + 2
         let unit = min(width / restingWidth, idealTileLength / 2)
