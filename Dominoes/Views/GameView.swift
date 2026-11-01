@@ -16,7 +16,7 @@ struct GameView: View {
             ZStack {
                 Backdrop()
                 if wide { sideways(size) } else { upright(size) }
-                overlays
+                overlays(wide: wide)
             }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: controller.playCount)
@@ -171,10 +171,11 @@ struct GameView: View {
     }
 
     @ViewBuilder
-    private var overlays: some View {
+    private func overlays(wide: Bool) -> some View {
         switch controller.phase {
         case .choosingStarter:
-            Dimmed(dims: false) {
+            // Sideways, the card sits over the table, clear of the players.
+            Dimmed(dims: false, leadingInset: wide ? 208 : 0) {
                 StarterCard(onChoose: { controller.lead(withPartner: $0) })
             }
         case .gameOver, .matchOver:
@@ -301,6 +302,8 @@ struct SeatChip: View {
 struct Dimmed<Content: View>: View {
     /// False to leave the screen undimmed (so you can still see your tiles).
     var dims = true
+    /// Room to leave on the left (the players' column when sideways).
+    var leadingInset: CGFloat = 0
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -313,6 +316,7 @@ struct Dimmed<Content: View>: View {
                 .padding(24)
                 // Undimmed cards sit above the hand so your tiles stay in view.
                 .padding(.bottom, dims ? 0 : 120)
+                .padding(.leading, leadingInset)
         }
         .transition(.opacity)
     }
