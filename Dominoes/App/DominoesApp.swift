@@ -2,20 +2,29 @@ import SwiftUI
 
 @main
 struct DominoesApp: App {
+    @State private var account = AccountSession.make()
+
     var body: some Scene {
         WindowGroup {
-            if let size = LaunchOptions.current.previewSize {
-                ScreenPreview(screen: size) { RootView() }
-            } else {
-                RootView()
+            Group {
+                if let size = LaunchOptions.current.previewSize {
+                    ScreenPreview(screen: size) { RootView() }
+                } else {
+                    RootView()
+                }
             }
+            .environment(account)
+            // The link back from Google's sign-in page.
+            .onOpenURL { account.handle($0) }
+            .task { await account.refresh() }
         }
     }
 }
 
-/// Home, or a match in progress.
+/// Home, the account page, or a match in progress.
 struct RootView: View {
     @State private var controller: GameController?
+    @State private var showingAccount = false
     private let options = LaunchOptions.current
 
     var body: some View {
@@ -23,12 +32,16 @@ struct RootView: View {
             if let controller {
                 GameView(controller: controller, onExit: { withAnimation { self.controller = nil } })
                     .transition(.opacity)
+            } else if showingAccount {
+                AccountView(onClose: { showingAccount = false })
+                    .transition(.opacity)
             } else {
-                HomeView(onPlay: start)
+                HomeView(onPlay: start, onAccount: { showingAccount = true })
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: controller == nil)
+        .animation(.easeInOut(duration: 0.25), value: showingAccount)
         .onAppear {
             if options.startGame && controller == nil {
                 start(target: 100, level: .normal)

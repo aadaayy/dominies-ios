@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// The first screen: the name, two settings and a big Play button.
+/// The first screen: the name, two settings and a big Play button, with the
+/// account badge in the corner.
 struct HomeView: View {
     @AppStorage("target") private var target = 100
     @AppStorage("level") private var levelName = BotLevel.normal.rawValue
     var onPlay: (Int, BotLevel) -> Void
+    var onAccount: () -> Void = {}
 
     private var level: BotLevel { BotLevel(rawValue: levelName) ?? .normal }
 
@@ -70,6 +72,11 @@ struct HomeView: View {
                 Spacer(minLength: 0)
             }
             .padding(24)
+        }
+        .overlay(alignment: .topTrailing) {
+            AccountBadge(action: onAccount)
+                .padding(.trailing, 16)
+                .padding(.top, 8)
         }
     }
 

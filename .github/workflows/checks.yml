@@ -1,14 +1,16 @@
-# Automatic checks on every push to main.
+# Automatic checks on every push to main and to Claude's working branches.
 #  1. Logic tests: the rules, the computer players and the no-overlap table
 #     layout, on Linux (cheap and fast).
 #  2. App build and walk-through: builds the iPhone app and plays through it on
 #     iPhone Pro Max, iPhone Pro and iPhone Duo simulators, one Mac per phone.
-#  3. Publish: gathers every phone's screenshots onto the screenshots branch.
+#  3. Publish: gathers every phone's screenshots onto the screenshots branch
+#     (from main), or screenshots-<branch> (from a working branch, to review
+#     before merging).
 name: Checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
     paths-ignore: ['**.md']
   workflow_dispatch:
 
@@ -163,7 +165,7 @@ jobs:
   publish:
     name: Publish screenshots
     needs: app
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: always() && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write  # only to publish screenshots to the screenshots branch
@@ -181,9 +183,12 @@ jobs:
           echo "::notice title=Screenshots::${#files[@]} published"
           [ ${#files[@]} -eq 0 ] && exit 0
           cd publish
-          git init -q -b screenshots
+          target=screenshots
+          if [ "$GITHUB_REF_NAME" != "main" ]; then target="screenshots-${GITHUB_REF_NAME//\//-}"; fi
+          git init -q -b "$target"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -q -m "Screenshots from ${GITHUB_SHA::7}"
-          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screenshots
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$target"
+          echo "::notice title=Screenshots::published to $target"
