@@ -75,8 +75,8 @@ final class WalkthroughUITests: XCTestCase {
         capture("4z-zoomed-in")
         try assertNoTilesOverlap(app, zoomedIn: true)
         fit.tap()
-        sleep(1)
-        XCTAssertFalse(fit.exists, "The whole line should show again")
+        XCTAssertTrue(fit.waitForNonExistence(timeout: 3), "The whole line should show again")
+        sleep(2)
         try assertNoTilesOverlap(app)
 
         // The phones play sideways too; the folded Duo stays upright.

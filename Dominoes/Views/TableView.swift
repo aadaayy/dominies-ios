@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The line of tiles on the table, laid out by `BoardLayout` so tiles never
 /// overlap. The snake's width follows the space; the whole line shrinks to fit
@@ -99,7 +100,15 @@ struct TableView: View {
         withAnimation(.spring(duration: 0.45)) {
             zoom = 1
             pan = .zero
+        } completion: {
+            Self.tilesMoved()
         }
+    }
+
+    /// Tells VoiceOver (and the automatic checks) the tiles moved on screen,
+    /// since zooming only changes how they're drawn, not the layout.
+    private static func tilesMoved() {
+        UIAccessibility.post(notification: .layoutChanged, argument: nil)
     }
 
     private func pinch(in size: CGSize) -> some Gesture {
@@ -112,7 +121,7 @@ struct TableView: View {
             }
             .onEnded { _ in
                 zoomAtPinchStart = nil
-                if zoom < 1.05 { zoomOut() }
+                if zoom < 1.05 { zoomOut() } else { Self.tilesMoved() }
             }
     }
 
@@ -124,7 +133,10 @@ struct TableView: View {
                 pan = clamped(CGSize(width: start.width + value.translation.width,
                                      height: start.height + value.translation.height), in: size)
             }
-            .onEnded { _ in panAtDragStart = nil }
+            .onEnded { _ in
+                panAtDragStart = nil
+                Self.tilesMoved()
+            }
     }
 
     /// Keeps the zoomed line from sliding off the table.

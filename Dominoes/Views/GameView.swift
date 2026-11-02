@@ -58,7 +58,7 @@ struct GameView: View {
         }
     }
 
-    static let sideBarWidth: CGFloat = 104
+    static let sideBarWidth: CGFloat = 112
 
     /// The folded Duo: the table and your hand on the left, and a bar on the
     /// right with leaving, the score, the game number and the other players.
@@ -89,7 +89,7 @@ struct GameView: View {
             Text("Game \(controller.match.gameNumber)")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-            seats(axis: .vertical)
+            seats(axis: .vertical, compact: true)
                 .glassGroup()
             Spacer(minLength: 0)
         }
@@ -154,7 +154,7 @@ struct GameView: View {
         .frame(width: 64, alignment: .leading)
     }
 
-    private func seats(axis: Axis) -> some View {
+    private func seats(axis: Axis, compact: Bool = false) -> some View {
         let order = [1, 2, 3]
         let layout = axis == .horizontal ? AnyLayout(HStackLayout(spacing: 8)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
         return layout {
@@ -163,7 +163,8 @@ struct GameView: View {
                          team: Team.of(seat: seat),
                          tiles: controller.game.hands[seat].count,
                          isTurn: controller.phase == .playing && !controller.game.isOver && controller.game.current == seat,
-                         note: note(for: seat))
+                         note: note(for: seat),
+                         compact: compact)
             }
         }
     }
@@ -325,23 +326,26 @@ struct SeatChip: View {
     let tiles: Int
     let isTurn: Bool
     let note: String?
+    /// Narrow, for the folded Duo's side bar: a smaller dot and a shorter note.
+    var compact = false
 
     var body: some View {
-        HStack(spacing: 6) {
+        let dot: CGFloat = compact ? 12 : 16
+        HStack(spacing: compact ? 4 : 6) {
             Circle()
                 .fill(Theme.color(for: team))
-                .frame(width: 8, height: 8)
+                .frame(width: compact ? 7 : 8, height: compact ? 7 : 8)
                 .overlay {
-                    Circle().strokeBorder(Theme.color(for: team).opacity(0.35), lineWidth: isTurn ? 6 : 0)
-                        .frame(width: 16, height: 16)
+                    Circle().strokeBorder(Theme.color(for: team).opacity(0.35), lineWidth: isTurn ? dot / 2 - 2 : 0)
+                        .frame(width: dot, height: dot)
                 }
-                .frame(width: 16, height: 16)
+                .frame(width: dot, height: dot)
             VStack(alignment: .leading, spacing: 1) {
                 Text(name)
                     .font(.footnote.weight(.semibold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                if let note {
+                    .minimumScaleFactor(0.75)
+                if let note = compact ? note?.replacingOccurrences(of: "Played ", with: "") : note {
                     Text(note)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -357,7 +361,7 @@ struct SeatChip: View {
                 .fixedSize()
         }
         .frame(minHeight: 28)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, compact ? 6 : 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
         .glassPanel(RoundedRectangle(cornerRadius: 16, style: .continuous),
