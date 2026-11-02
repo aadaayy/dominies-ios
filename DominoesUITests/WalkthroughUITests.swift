@@ -66,17 +66,18 @@ final class WalkthroughUITests: XCTestCase {
 
         // Pinch to zoom in, then tap the button that shows the whole line again.
         let before = tilesOnTable(app).first?.frame.width ?? 0
-        table.pinch(withScale: 2.5, velocity: 1.5)
+        table.pinch(withScale: 2, velocity: 1.5)
         let fit = app.buttons["zoom-fit"]
         XCTAssertTrue(fit.waitForExistence(timeout: 3), "Pinching should zoom in")
         sleep(1)
         let after = tilesOnTable(app).first?.frame.width ?? 0
         XCTAssertGreaterThan(after, before * 1.3, "Tiles should look bigger after zooming in")
         capture("4z-zoomed-in")
-        try assertNoTilesOverlap(app)
+        try assertNoTilesOverlap(app, zoomedIn: true)
         fit.tap()
         sleep(1)
         XCTAssertFalse(fit.exists, "The whole line should show again")
+        try assertNoTilesOverlap(app)
 
         // The phones play sideways too; the folded Duo stays upright.
         if !Self.isDuo {
@@ -208,9 +209,18 @@ final class WalkthroughUITests: XCTestCase {
     /// Reads where every tile really is on screen and fails if any two cover
     /// the same spot. (Tiles are drawn with a hairline gap, so touching tiles
     /// don't count.)
+    /// Unless you've zoomed in, every tile must also sit fully inside the
+    /// table, none cut off at an edge.
     @MainActor
-    private func assertNoTilesOverlap(_ app: XCUIApplication) throws {
+    private func assertNoTilesOverlap(_ app: XCUIApplication, zoomedIn: Bool = false) throws {
         let frames = tilesOnTable(app).map(\.frame)
+        if !zoomedIn {
+            let table = app.descendants(matching: .any)["table"].frame
+            for frame in frames where !table.insetBy(dx: -1, dy: -1).contains(frame) {
+                XCTFail("A tile is cut off at the table's edge: \(frame) outside \(table)")
+                return
+            }
+        }
         for i in frames.indices {
             for j in frames.indices where j > i {
                 let shared = frames[i].intersection(frames[j])

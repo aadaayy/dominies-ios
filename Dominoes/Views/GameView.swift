@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The table: scores and the three other players at the top, the line of
 /// tiles in the middle and your hand at the bottom. On a short, wide screen
-/// (a phone on its side) the scores and players move to a column on the left.
+/// (a phone on its side, the open Duo) the scores and players move to a
+/// column on the left; on the folded Duo they move to a bar on the right.
 struct GameView: View {
     @Bindable var controller: GameController
     var onExit: () -> Void
@@ -13,10 +14,21 @@ struct GameView: View {
             // phones and the folded Duo stack everything.
             let size = geometry.size
             let wide = size.width > size.height * 1.2
+            // The folded Duo's screen is much squarer than other iPhones'.
+            let screenWidth = size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
+            let screenHeight = size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom
+            let folded = !wide && screenHeight / max(screenWidth, 1) < 1.6
             ZStack {
                 Backdrop()
-                if wide { sideways(size) } else { upright(size) }
-                overlays(wide: wide)
+                if wide {
+                    sideways(size)
+                } else if folded {
+                    foldedDuo(size)
+                } else {
+                    upright(size)
+                }
+                overlays(insets: wide ? EdgeInsets(top: 0, leading: 208, bottom: 0, trailing: 0)
+                                      : folded ? EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: Self.sideBarWidth) : EdgeInsets())
             }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: controller.playCount)
@@ -44,6 +56,45 @@ struct GameView: View {
             statusLine
             hand(rows: rows).frame(height: handHeight)
         }
+    }
+
+    static let sideBarWidth: CGFloat = 104
+
+    /// The folded Duo: the table and your hand on the left, and a bar on the
+    /// right with leaving, the score, the game number and the other players.
+    private func foldedDuo(_ size: CGSize) -> some View {
+        let tableWidth = size.width - Self.sideBarWidth
+        let byWidth = (tableWidth - 24 - HandView.spacing * 4) / 5
+        let tileWidth = min(40, byWidth, size.height * 0.055)
+        let handHeight = HandView.height(rows: 2, tileWidth: tileWidth) + Self.trayPadding.top + Self.trayPadding.bottom
+        return HStack(spacing: 0) {
+            VStack(spacing: 8) {
+                table
+                statusLine
+                hand(rows: 2).frame(height: handHeight)
+            }
+            .frame(width: tableWidth)
+            sideBar
+                .frame(width: Self.sideBarWidth)
+        }
+    }
+
+    private var sideBar: some View {
+        VStack(spacing: 12) {
+            HStack { closeButton; Spacer(minLength: 0) }
+            ScoreView(match: controller.match, stacked: true)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .glassPanel(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            Text("Game \(controller.match.gameNumber)")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            seats(axis: .vertical)
+                .glassGroup()
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 8)
+        .padding(.horizontal, 6)
     }
 
     private func sideways(_ size: CGSize) -> some View {
@@ -171,11 +222,11 @@ struct GameView: View {
     }
 
     @ViewBuilder
-    private func overlays(wide: Bool) -> some View {
+    private func overlays(insets: EdgeInsets) -> some View {
         switch controller.phase {
         case .choosingStarter:
             // Sideways, the card sits over the table, clear of the players.
-            Dimmed(dims: false, leadingInset: wide ? 208 : 0) {
+            Dimmed(dims: false, insets: insets) {
                 StarterCard(onChoose: { controller.lead(withPartner: $0) })
             }
         case .gameOver, .matchOver:
@@ -222,8 +273,27 @@ struct GameView: View {
 /// Us and Them, with the target underneath.
 struct ScoreView: View {
     let match: Match
+    /// Us over Them, for the folded Duo's side bar.
+    var stacked = false
 
     var body: some View {
+        if stacked {
+            VStack(alignment: .leading, spacing: 4) {
+                score("Us", match.score(of: .us), Theme.us)
+                score("Them", match.score(of: .them), Theme.them)
+                Text("to \(match.target)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .font(.subheadline.weight(.semibold))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("score")
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
         VStack(spacing: 2) {
             HStack(spacing: 14) {
                 score("Us", match.score(of: .us), Theme.us)
@@ -302,8 +372,8 @@ struct SeatChip: View {
 struct Dimmed<Content: View>: View {
     /// False to leave the screen undimmed (so you can still see your tiles).
     var dims = true
-    /// Room to leave on the left (the players' column when sideways).
-    var leadingInset: CGFloat = 0
+    /// Room to leave for the players' column or side bar.
+    var insets = EdgeInsets()
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -316,7 +386,7 @@ struct Dimmed<Content: View>: View {
                 .padding(24)
                 // Undimmed cards sit above the hand so your tiles stay in view.
                 .padding(.bottom, dims ? 0 : 120)
-                .padding(.leading, leadingInset)
+                .padding(insets)
         }
         .transition(.opacity)
     }
