@@ -116,7 +116,7 @@ struct TableView: View {
             .onChanged { value in
                 let start = zoomAtPinchStart ?? zoom
                 zoomAtPinchStart = start
-                zoom = min(4, max(1, start * value.magnification))
+                zoom = min(2.5, max(1, start * value.magnification))
                 pan = clamped(pan, in: size)
             }
             .onEnded { _ in
