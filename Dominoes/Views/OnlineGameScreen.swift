@@ -13,10 +13,19 @@ struct OnlineGameScreen: View {
     var body: some View {
         GameView(controller: controller, onExit: exit)
             .overlay(alignment: .top) {
-                TimelineView(.periodic(from: .now, by: 5)) { _ in
-                    banners
+                // Below the row of seats and scores along the top, so the
+                // banner never hides who's playing. On the folded Duo it stays
+                // over the table, clear of the score column on the right.
+                GeometryReader { geometry in
+                    let wide = geometry.size.width > geometry.size.height * 1.2
+                    TimelineView(.periodic(from: .now, by: 5)) { _ in
+                        banners
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, wide ? 60 : 92)
+                    .padding(.horizontal, 12)
+                    .padding(.trailing, wide ? 0 : GameView.sideBarWidth)
                 }
-                .padding(.top, 8)
             }
             .overlay {
                 if controller.isClosed {
@@ -79,6 +88,7 @@ struct OnlineGameScreen: View {
             banner {
                 Text("\(controller.names[seat]) hasn't played for a minute")
                     .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
                 Button("Let a computer play") { controller.replaceStalledPlayer() }
                     .prominentGlassButton()
                     .controlSize(.small)
