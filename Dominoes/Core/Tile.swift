@@ -14,6 +14,12 @@ struct Tile: Hashable, Identifiable, Codable, CustomStringConvertible {
     var pips: Int { low + high }
     var description: String { "[\(low)|\(high)]" }
 
+    /// A face-down stand-in for another player's tile in an online game,
+    /// where only the count is known. Each one is different, so lists of them
+    /// still have distinct ids.
+    static func hidden(_ index: Int) -> Tile { Tile(-1, -2 - index) }
+    var isHidden: Bool { high < 0 }
+
     func has(_ value: Int) -> Bool { low == value || high == value }
 
     /// The number on the other half, once `value` is matched.

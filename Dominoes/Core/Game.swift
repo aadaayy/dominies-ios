@@ -82,6 +82,33 @@ struct Game: Hashable, Codable {
         current = starter
     }
 
+    /// A game as an online table shows it, rebuilt from what the server sent:
+    /// the board from the plays in `log`, the hands as given (other players'
+    /// tiles are hidden placeholders until the game ends), and whose turn it
+    /// is. `current` is -1 while nobody can play yet.
+    init(snapshot hands: [[Tile]], log: [Action], starter: Int, current: Int, result: GameResult?) {
+        precondition(hands.count == 4)
+        self.hands = hands.map { $0.contains(where: \.isHidden) ? $0 : Game.sorted($0) }
+        boneyard = []
+        self.starter = starter
+        self.current = current
+        self.log = log
+        self.result = result
+        var board = Board()
+        var knocks = 0
+        for action in log {
+            switch action {
+            case .play(_, let tile, let end):
+                board.place(tile, on: end)
+                knocks = 0
+            case .knock:
+                knocks += 1
+            }
+        }
+        self.board = board
+        knocksInARow = knocks
+    }
+
     /// Shuffles a double-nine set and deals ten tiles each. Deals again
     /// whenever anyone gets five or more doubles.
     static func deal<R: RandomNumberGenerator>(using rng: inout R) -> (hands: [[Tile]], boneyard: [Tile]) {

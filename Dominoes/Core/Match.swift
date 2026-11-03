@@ -15,6 +15,16 @@ struct Match: Hashable, Codable {
         self.openingTeam = openingTeam
     }
 
+    /// A match as an online table shows it, from the server's score.
+    init(target: Int, usScore: Int, themScore: Int, gameNumber: Int, openingTeam: Team, winner: Team?) {
+        self.target = target
+        self.usScore = usScore
+        self.themScore = themScore
+        self.gameNumber = max(gameNumber, 1)
+        self.openingTeam = openingTeam
+        self.winner = winner
+    }
+
     /// The first game's opening team comes from a fair draw.
     init<R: RandomNumberGenerator>(target: Int = 100, using rng: inout R) {
         self.init(target: target, openingTeam: Bool.random(using: &rng) ? .us : .them)

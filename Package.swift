@@ -16,7 +16,9 @@ let package = Package(
         .testTarget(
             name: "DominoCoreTests",
             dependencies: ["DominoCore"],
-            path: "Tests/DominoCoreTests"
+            path: "Tests/DominoCoreTests",
+            // Real answers from the game server, read by OnlineTests.
+            exclude: ["Fixtures"]
         ),
     ]
 )
