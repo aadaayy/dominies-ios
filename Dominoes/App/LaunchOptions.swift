@@ -18,6 +18,8 @@ struct LaunchOptions {
     var previewSize: CGSize?
     /// Which team leads the first game, instead of the draw.
     var firstTeam: Team?
+    /// Open Play with Friends straight away.
+    var openFriends = false
 
     static let current = LaunchOptions(arguments: ProcessInfo.processInfo.arguments)
 
@@ -30,6 +32,7 @@ struct LaunchOptions {
         demoMoves = value(after: "-demoMoves").flatMap(Int.init) ?? 0
         botDelay = value(after: "-botDelay").flatMap(Double.init) ?? 0.8
         startGame = arguments.contains("-startGame")
+        openFriends = arguments.contains("-openFriends")
         if arguments.contains("-openDuoPreview") {
             previewSize = CGSize(width: 951, height: 669)
         } else if let text = value(after: "-previewSize") {

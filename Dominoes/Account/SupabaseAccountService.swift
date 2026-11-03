@@ -11,7 +11,8 @@ final class SupabaseAccountService: AccountService {
     /// Redirect URLs (README, Accounts setup).
     static let callbackURL = URL(string: "dominoes://login-callback")!
 
-    private let client: SupabaseClient
+    /// Shared with the online games, so they run as the signed-in player.
+    let client: SupabaseClient
 
     init(config: AccountConfig) {
         client = SupabaseClient(

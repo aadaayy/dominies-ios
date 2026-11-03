@@ -5,6 +5,8 @@ struct ResultCard: View {
     let result: GameResult
     let game: Game
     let match: Match
+    /// Who sits where, by seat: "You" first. Online, friends' first names.
+    var names: [String] = GameController.names
     let isMatchOver: Bool
     var onNext: () -> Void
     var onDone: () -> Void
@@ -62,7 +64,7 @@ struct ResultCard: View {
     private var detail: String {
         switch result.kind {
         case .domino(let seat):
-            let who = seat == 0 ? "You" : GameController.names[seat]
+            let who = seat == 0 ? "You" : names[seat]
             return "\(who) went out. \(points)"
         case .blocked:
             return "Nobody could play. Us \(result.usPips), Them \(result.themPips) left. \(points)"
@@ -79,7 +81,7 @@ struct ResultCard: View {
     private func leftovers(_ seat: Int) -> some View {
         HStack(spacing: 8) {
             Circle().fill(Theme.color(for: Team.of(seat: seat))).frame(width: 6, height: 6)
-            Text(GameController.names[seat])
+            Text(names[seat])
                 .font(.footnote.weight(.medium))
                 .frame(width: 58, alignment: .leading)
             HStack(spacing: 3) {

@@ -1,12 +1,15 @@
 import SwiftUI
 
-/// The first screen: the name, two settings and a big Play button, with the
-/// account badge in the corner.
+/// The first screen: the name, Play with Friends, and a game against the
+/// computer with its two settings, with the account badge in the corner.
 struct HomeView: View {
     @AppStorage("target") private var target = 100
     @AppStorage("level") private var levelName = BotLevel.normal.rawValue
     var onPlay: (Int, BotLevel) -> Void
+    var onFriends: () -> Void = {}
     var onAccount: () -> Void = {}
+    /// Invites waiting for you, shown on Play with Friends.
+    var invites = 0
 
     private var level: BotLevel { BotLevel(rawValue: levelName) ?? .normal }
 
@@ -68,7 +71,29 @@ struct HomeView: View {
     }
 
     private var controls: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 14) {
+            Button(action: onFriends) {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.fill")
+                    Text("Play with Friends")
+                    if invites > 0 {
+                        Text(invites == 1 ? "1 invite" : "\(invites) invites")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(.white.opacity(0.25)))
+                            .accessibilityIdentifier("invite-count")
+                    }
+                }
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+            }
+            .prominentGlassButton()
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .accessibilityIdentifier("play-friends")
+
             VStack(spacing: 0) {
                 row("Play to") {
                     Picker("Play to", selection: $target) {
@@ -78,8 +103,8 @@ struct HomeView: View {
                     .frame(maxWidth: 240)
                 }
                 Divider().padding(.leading, 16)
-                row("Opponents") {
-                    Picker("Opponents", selection: $levelName) {
+                row("Computers") {
+                    Picker("Computers", selection: $levelName) {
                         ForEach(BotLevel.allCases) { Text($0.title).tag($0.rawValue) }
                     }
                     .pickerStyle(.segmented)
@@ -87,21 +112,22 @@ struct HomeView: View {
                 }
             }
             .glassPanel(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .padding(.top, 10)
 
             Button {
                 onPlay(target, level)
             } label: {
-                Text("Play")
+                Text("Play with Computer")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 4)
             }
-            .prominentGlassButton()
+            .glassButton()
             .buttonBorderShape(.capsule)
             .controlSize(.large)
             .accessibilityIdentifier("play")
 
-            Text("You and your partner against two computer players.")
+            Text("Try it out: you and a computer partner against two computers.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

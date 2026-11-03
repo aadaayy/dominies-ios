@@ -159,7 +159,7 @@ struct GameView: View {
         let layout = axis == .horizontal ? AnyLayout(HStackLayout(spacing: 8)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
         return layout {
             ForEach(order, id: \.self) { seat in
-                SeatChip(name: GameController.names[seat],
+                SeatChip(name: controller.names[seat],
                          team: Team.of(seat: seat),
                          tiles: controller.game.hands[seat].count,
                          isTurn: controller.phase == .playing && !controller.game.isOver && controller.game.current == seat,
@@ -236,6 +236,7 @@ struct GameView: View {
                     ResultCard(result: result,
                                game: controller.game,
                                match: controller.match,
+                               names: controller.names,
                                isMatchOver: controller.phase == .matchOver,
                                onNext: { controller.nextGame() },
                                onDone: onExit)
