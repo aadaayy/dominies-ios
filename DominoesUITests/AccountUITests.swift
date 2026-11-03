@@ -80,13 +80,13 @@ final class AccountUITests: XCTestCase {
         capture("22-email-link")
 
         // An old or used link comes back with an error and doesn't sign in.
-        app.open(try XCTUnwrap(URL(string: "dominoes://login-callback#error=access_denied&error_code=otp_expired")))
+        openLink(try XCTUnwrap(URL(string: "dominoes://login-callback#error=access_denied&error_code=otp_expired")))
         XCTAssertTrue(app.staticTexts["account-problem"].waitForExistence(timeout: 5), "An old link should be refused")
         XCTAssertFalse(app.buttons["sign-out"].exists)
 
         app.buttons["resend-code"].tap()
         XCTAssertTrue(app.staticTexts["account-problem"].waitForNonExistence(timeout: 5))
-        app.open(try XCTUnwrap(URL(string: "dominoes://login-callback?code=mock-link")))
+        openLink(try XCTUnwrap(URL(string: "dominoes://login-callback?code=mock-link")))
         XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5), "The link should sign in")
         XCTAssertEqual(app.staticTexts["account-name"].label, "sam.lee@example.com")
         sleep(1)
@@ -224,6 +224,16 @@ final class AccountUITests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// Opens a link the way tapping it in Mail does, with the app still
+    /// running (XCUIApplication.open would start the app over).
+    @MainActor
+    private func openLink(_ url: URL) {
+        XCUIDevice.shared.system.open(url)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let open = springboard.buttons["Open"]
+        if open.waitForExistence(timeout: 3) { open.tap() }
+    }
 
     @MainActor
     private func launch(_ arguments: [String]) -> XCUIApplication {

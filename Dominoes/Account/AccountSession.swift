@@ -14,6 +14,10 @@ final class AccountSession {
     let emailCodes: Bool
     /// Why the last sign-in link didn't work, if it didn't.
     private(set) var linkProblem: String?
+    /// Counts sign-in links handled, so the app can show the account page
+    /// when one arrives (the app may have been closed while the player was
+    /// in their email).
+    private(set) var linksHandled = 0
 
     var isSetUp: Bool { service != nil }
 
@@ -71,7 +75,7 @@ final class AccountSession {
 
     /// A sign-in link from the email, opened on this phone.
     func handle(_ url: URL) async {
-        guard let service else { return }
+        guard let service, SignInLink.isSignInLink(url) else { return }
         do {
             if let signedIn = try await service.signIn(from: url) {
                 player = signedIn
@@ -80,5 +84,6 @@ final class AccountSession {
         } catch {
             linkProblem = error.localizedDescription
         }
+        linksHandled += 1
     }
 }

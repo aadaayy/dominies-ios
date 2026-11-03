@@ -25,6 +25,7 @@ struct DominoesApp: App {
 struct RootView: View {
     @State private var controller: GameController?
     @State private var showingAccount = false
+    @Environment(AccountSession.self) private var account
     private let options = LaunchOptions.current
 
     var body: some View {
@@ -42,6 +43,10 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: controller == nil)
         .animation(.easeInOut(duration: 0.25), value: showingAccount)
+        // A sign-in link from the email: show how it went, unless mid-game.
+        .onChange(of: account.linksHandled) {
+            if controller == nil { showingAccount = true }
+        }
         .onAppear {
             if options.startGame && controller == nil {
                 start(target: 100, level: .normal)
