@@ -30,10 +30,14 @@ final class AccountTests: XCTestCase {
         XCTAssertFalse(Player.looksLikeEmail(""))
     }
 
-    func testCleanCode() {
-        XCTAssertEqual(Player.cleanCode("123 456"), "123456")
-        XCTAssertEqual(Player.cleanCode("Code: 98-76-54"), "987654")
-        XCTAssertEqual(Player.cleanCode("12345678901234"), "1234567890")
+    func testPasswordRules() {
+        XCTAssertNotNil(Player.passwordProblem(""))
+        XCTAssertEqual(Player.passwordProblem("short12"), "Use at least 8 characters for your password.")
+        XCTAssertNil(Player.passwordProblem("domino99"))
+        XCTAssertNil(Player.passwordProblem("double nine dominoes"))
+        XCTAssertNotNil(Player.passwordProblem("        "), "Only spaces won't do")
+        XCTAssertNil(Player.passwordProblem(String(repeating: "a", count: 72)))
+        XCTAssertNotNil(Player.passwordProblem(String(repeating: "a", count: 73)), "Supabase keeps 72 at most")
     }
 
     func testConfigNeedsARealProjectAndAPublicKey() {
@@ -44,21 +48,6 @@ final class AccountTests: XCTestCase {
         XCTAssertNil(AccountConfig(values: ["SupabaseURL": "http://abc.supabase.co", "SupabaseKey": "sb_publishable_x"]))
         XCTAssertNil(AccountConfig(values: ["SupabaseURL": "https://abc.supabase.co", "SupabaseKey": "sb_secret_x"]))
         XCTAssertNil(AccountConfig(values: [:]))
-        XCTAssertEqual(real?.emailCodes, false, "Codes stay off until the emails can show one")
-        let codes = AccountConfig(values: ["SupabaseURL": "https://abc.supabase.co", "SupabaseKey": "sb_publishable_x", "EmailCodes": true])
-        XCTAssertEqual(codes?.emailCodes, true)
-    }
-
-    func testSignInLinks() throws {
-        let good = try XCTUnwrap(URL(string: "dominoes://login-callback?code=abc123"))
-        XCTAssertTrue(SignInLink.isSignInLink(good))
-        XCTAssertNil(SignInLink.errorCode(in: good))
-        XCTAssertFalse(SignInLink.isSignInLink(try XCTUnwrap(URL(string: "dominoes://somewhere-else"))))
-        XCTAssertFalse(SignInLink.isSignInLink(try XCTUnwrap(URL(string: "https://login-callback"))))
-        let expired = try XCTUnwrap(URL(string: "dominoes://login-callback#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired"))
-        XCTAssertEqual(SignInLink.errorCode(in: expired), "otp_expired")
-        let denied = try XCTUnwrap(URL(string: "dominoes://login-callback?error=access_denied"))
-        XCTAssertEqual(SignInLink.errorCode(in: denied), "access_denied")
     }
 
     /// The Accounts.plist that ships in the app points at the Dominoes
@@ -70,6 +59,5 @@ final class AccountTests: XCTestCase {
         let config = try XCTUnwrap(AccountConfig.load(data: Data(contentsOf: file)))
         XCTAssertEqual(config.url.host, "chgnvqvkcifbjtgbboqa.supabase.co")
         XCTAssertTrue(config.key.hasPrefix("sb_publishable_"))
-        XCTAssertFalse(config.emailCodes, "Supabase's default emails send a link, not a code")
     }
 }

@@ -12,7 +12,7 @@ Double Nine dominoes for iPhone Duo and regular iPhones: you and your partner ag
 6. When a tile fits both ends, the two ends light up and you tap the one you want.
 7. Play upright or sideways. Upright (and on the folded Duo) your ten tiles sit in two rows of five; sideways (and on the open Duo) they sit in one row with the players on the left.
 8. Pinch the table to zoom in and drag to look around. After every tile played it zooms back out to the whole line.
-9. Accounts: the badge in Home's top corner opens Sign in, with Continue with Google, or an email address and a six-digit code sent to it, for people without Google. Signed in, the badge shows your Google picture (or initials), and the account page has Sign Out and Delete Account. Signing in is optional; the game plays the same without it.
+9. Accounts: the badge in Home's top corner opens Sign in, with Continue with Google, or an email and password for people without Google (Create Account, or Sign In to one made before). Signed in, the badge shows your Google picture (or initials), and the account page has Sign Out and Delete Account. Signing in is optional; the game plays the same without it.
 
 ## How the code is laid out
 
@@ -56,30 +56,17 @@ Google sign-in needs these clicks once:
 7. Authentication > URL Configuration > Redirect URLs: add `dominoes://login-callback`.
 8. Leave Authentication > Sign In / Providers > Email turned on, for people without a Google account.
 
-### Email sign-in (no password)
+### Email and password
 
-Players type their email and get a sign-in email. New addresses get an account the first time. Nothing to set up for this.
+Players without Google type an email and a password (at least 8 characters). Create Account makes the account and signs in straight away; Sign In opens one made before. No email is sent either way, because Authentication > Sign In / Providers > Email has Confirm email turned off. Leave it off: with it on, new players would need a confirmation email, which Supabase's own sender only delivers to your Supabase team.
 
-With Supabase's default emails (what you have now), the email has a link. Tapping it on the same phone opens the app signed in. It goes through `dominoes://login-callback`, the same Redirect URL as Google (step 7). A link opened on another device, or an old one, doesn't sign in, and the app says to send a new one.
-
-Later, to send a six-digit code instead: Supabase only lets you edit the emails once your own email sender is connected (below). Then:
-
-1. Authentication > Emails > Templates > Magic link or OTP: replace the body with:
-   ```html
-   <h2>Your Dominoes code</h2>
-   <p>Enter this code in the app: <strong>{{ .Token }}</strong></p>
-   <p>It works once and expires soon. If you didn't ask for it, ignore this email.</p>
-   ```
-2. Do the same for Confirm sign up (new players get that one first).
-3. In `Dominoes/Account/Accounts.plist`, add `<key>EmailCodes</key><true/>`, so the app asks for the code.
-
-Supabase's own email sender is only for trying things out: it only sends to the email addresses of your Supabase organization's members, and only a few emails an hour. Before other people sign in with email, connect an email service under Authentication > Emails > SMTP Settings (for example Resend, which has a free plan), then raise the email limit under Authentication > Rate Limits. Until then, other people's email sign-ins fail with "Email sign-in isn't open to everyone yet. Use Google for now." Google sign-in has no such limit.
+The app shows plain messages for a wrong password, an email that already has an account, and a password that's too short. There's no "forgot password" yet, since a reset needs an email sent to the player.
 
 While Google's Audience says Testing, only the test users you list (up to 100) can sign in. To open it to everyone, press Publish app; the app only asks for name, email and picture, which normally doesn't need Google's review.
 
 Later, Sign in with Apple needs the paid Apple Developer Program. Apple's review rules expect it (or a similar private sign-in) next to Google before the app goes on the App Store.
 
-The automatic checks never reach Supabase: they use a pretend account server on the phone (`-mockAccount`, `Dominoes/Account/MockAccountService.swift`), where any sign-in link works and the email code is always 123456 (with `-mockEmailCodes`).
+The automatic checks never reach Supabase: they use a pretend account server on the phone (`-mockAccount`, `Dominoes/Account/MockAccountService.swift`), where Google signs in as Alex Rivera, new email accounts last until the app quits, and jordan@example.com with the password dominoes1 is there to sign in to.
 
 ## Automatic checks
 

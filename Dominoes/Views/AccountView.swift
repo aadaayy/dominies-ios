@@ -1,24 +1,31 @@
 import SwiftUI
 
 /// The account page, opened from the badge on Home. Signed out it offers
-/// Continue with Google, or a sign-in email for people without a Google
-/// account (a link to tap, or a six-digit code once the emails show one); signed in it shows the player and lets them sign out or
-/// delete the account. Playing never needs an account.
+/// Continue with Google, or an email and password for people without a
+/// Google account (make one, or sign in to one); signed in it shows the
+/// player and lets them sign out or delete the account. Playing never needs
+/// an account.
 struct AccountView: View {
     var onClose: () -> Void
 
     @Environment(AccountSession.self) private var account
-    @Environment(\.openURL) private var openURL
     @State private var working = false
     @State private var problem: String?
     @State private var confirmingDelete = false
+    @State private var mode = Mode.create
     @State private var email = ""
-    /// Where the sign-in email went, once it's sent.
-    @State private var codeSentTo: String?
-    @State private var code = ""
+    @State private var password = ""
+    @State private var showingPassword = false
     @FocusState private var focus: Field?
 
-    private enum Field { case email, code }
+    private enum Field { case email, password }
+
+    /// Make a new account, or sign in to one made before.
+    private enum Mode: Hashable { case create, signIn }
+
+    /// While typing, only the title and the email form show, so the fields
+    /// and the button fit above the keyboard on the folded Duo.
+    private var typing: Bool { focus != nil }
 
     var body: some View {
         GeometryReader { geometry in
@@ -44,7 +51,7 @@ struct AccountView: View {
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.vertical, wide ? 32 : 56)
+                    .padding(.vertical, wide ? 32 : (typing ? 16 : 56))
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height)
                     // Tapping anywhere off the fields puts the keyboard away.
                     .contentShape(Rectangle())
@@ -58,14 +65,13 @@ struct AccountView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: account.player)
-        // Signed in from the link in the email: start fresh next time.
-        .onChange(of: account.player) { _, player in
-            if player != nil {
-                codeSentTo = nil
-                code = ""
-                email = ""
-                problem = nil
-            }
+        .animation(.easeInOut(duration: 0.25), value: typing)
+        // Signed in or out: start the form fresh.
+        .onChange(of: account.player) {
+            email = ""
+            password = ""
+            showingPassword = false
+            mode = .create
         }
         .alert("Delete your account?", isPresented: $confirmingDelete) {
             Button("Delete", role: .destructive) { run { try await account.deleteAccount() } }
@@ -100,11 +106,8 @@ struct AccountView: View {
                     .labelStyle(.titleAndIcon)
             }
         } else {
-            // While a code is being typed, only the title stays, so the code
-            // and Sign In fit above the keyboard on the folded Duo.
-            let typingCode = codeSentTo != nil
             VStack(spacing: 18) {
-                if !typingCode {
+                if !typing {
                     HStack(spacing: 10) {
                         DominoView(first: 6, second: 3, isVertical: true)
                             .frame(width: 30, height: 60)
@@ -117,7 +120,7 @@ struct AccountView: View {
                 VStack(spacing: 8) {
                     Text("Sign in to Dominoes")
                         .font(.title2.weight(.bold))
-                    if !typingCode {
+                    if !typing {
                         Text("Make an account with Google or your email so your name comes with you. You can keep playing without one.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
@@ -126,7 +129,6 @@ struct AccountView: View {
                     }
                 }
             }
-            .animation(.easeInOut(duration: 0.25), value: typingCode)
         }
     }
 
@@ -144,46 +146,44 @@ struct AccountView: View {
                     }
                 }
                 .glassPanel(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            } else if let sentTo = codeSentTo {
-                if account.emailCodes {
-                    codeEntry(sentTo)
-                } else {
-                    linkSent(sentTo)
-                }
             } else {
-                Button {
-                    run { try await account.signInWithGoogle() }
-                } label: {
-                    HStack(spacing: 12) {
-                        Image("GoogleG")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 20, height: 20)
-                        Text("Continue with Google")
-                            .font(.headline)
+                if !typing {
+                    Button {
+                        run { try await account.signInWithGoogle() }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image("GoogleG")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 20, height: 20)
+                            Text("Continue with Google")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+                    .glassButton()
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    .disabled(working)
+                    .accessibilityIdentifier("sign-in-google")
+
+                    orDivider
                 }
-                .glassButton()
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
-                .disabled(working)
-                .accessibilityIdentifier("sign-in-google")
 
-                orDivider
+                emailForm
 
-                emailEntry
-
-                Button("Not now", action: onClose)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .buttonStyle(.plain)
-                    .padding(.top, 2)
-                    .accessibilityIdentifier("not-now")
+                if !typing {
+                    Button("Not now", action: onClose)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .buttonStyle(.plain)
+                        .padding(.top, 2)
+                        .accessibilityIdentifier("not-now")
+                }
             }
 
-            if let problem = problem ?? account.linkProblem {
+            if let problem {
                 Text(problem)
                     .font(.footnote)
                     .foregroundStyle(.red)
@@ -204,115 +204,82 @@ struct AccountView: View {
         .padding(.horizontal, 8)
     }
 
-    /// Step one of email sign-in: the address, then the email goes to it.
-    private var emailEntry: some View {
-        let ready = Player.looksLikeEmail(email)
+    /// For people without Google: an email and a password, to make an
+    /// account or to sign in to one. No email is sent either way.
+    private var emailForm: some View {
+        let ready = Player.looksLikeEmail(email) && !password.isEmpty
         return VStack(spacing: 10) {
+            Picker("Account", selection: Binding(get: { mode }, set: { new in
+                mode = new
+                problem = nil
+            })) {
+                Text("Create Account").tag(Mode.create)
+                Text("Sign In").tag(Mode.signIn)
+            }
+            .pickerStyle(.segmented)
+            .disabled(working)
+            .padding(.bottom, 2)
+            .accessibilityIdentifier("email-mode")
+
             TextField("Email address", text: $email)
-                .textContentType(.emailAddress)
+                .textContentType(.username)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .submitLabel(.send)
+                .submitLabel(.next)
                 .focused($focus, equals: .email)
-                .onSubmit { if ready { sendCode() } }
+                .onSubmit { focus = .password }
                 .padding(.horizontal, 18)
                 .frame(height: 50)
                 .glassPanel(Capsule())
                 .accessibilityIdentifier("email-field")
-            Button(action: sendCode) {
-                Text(account.emailCodes ? "Email Me a Code" : "Email Me a Link")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .opacity(working ? 0 : 1)
-                    .overlay { if working { ProgressView() } }
-            }
-            .glassButton()
-            .buttonBorderShape(.capsule)
-            .controlSize(.large)
-            .disabled(!ready || working)
-            .accessibilityIdentifier("send-code")
-        }
-    }
 
-    /// Step two, with Supabase's default emails: tap the link in the email
-    /// on this phone, and it opens the app signed in.
-    private func linkSent(_ sentTo: String) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "envelope.badge")
-                .font(.system(size: 40))
-                .foregroundStyle(.tint)
-                .symbolRenderingMode(.hierarchical)
-                .padding(.bottom, 2)
-            VStack(spacing: 4) {
-                Text("Check your email")
-                    .font(.headline)
-                Text("Tap the link in the email sent to \(sentTo). Open it on this phone.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .accessibilityIdentifier("code-sent-to")
-            }
-            if let mail = URL(string: "message://") {
+            HStack(spacing: 8) {
+                Group {
+                    if showingPassword {
+                        TextField("Password", text: $password)
+                    } else {
+                        SecureField("Password", text: $password)
+                    }
+                }
+                .textContentType(mode == .create ? .newPassword : .password)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.go)
+                .focused($focus, equals: .password)
+                .onSubmit { if ready { submit() } }
+                .accessibilityIdentifier("password-field")
                 Button {
-                    openURL(mail)
+                    let wasTyping = focus == .password
+                    showingPassword.toggle()
+                    if wasTyping { focus = .password }
                 } label: {
-                    Text("Open Mail")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .opacity(working ? 0 : 1)
-                        .overlay { if working { ProgressView() } }
+                    Image(systemName: showingPassword ? "eye.slash" : "eye")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
-                .prominentGlassButton()
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
-                .disabled(working)
-                .accessibilityIdentifier("open-mail")
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("show-password")
+                .accessibilityLabel(showingPassword ? "Hide password" : "Show password")
             }
-            HStack(spacing: 20) {
-                Button("Send a New Link", action: sendCode)
-                    .accessibilityIdentifier("resend-code")
-                Button("Use Another Email", action: useAnotherEmail)
-                    .accessibilityIdentifier("change-email")
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .buttonStyle(.plain)
-            .disabled(working)
-        }
-    }
+            .padding(.leading, 18)
+            .padding(.trailing, 10)
+            .frame(height: 50)
+            .glassPanel(Capsule())
 
-    /// Step two, once the emails show a code: type it in.
-    private func codeEntry(_ sentTo: String) -> some View {
-        let ready = Player.cleanCode(code).count >= 6
-        return VStack(spacing: 12) {
-            VStack(spacing: 4) {
-                Text("Check your email")
-                    .font(.headline)
-                Text("Enter the code sent to \(sentTo).")
-                    .font(.subheadline)
+            if mode == .create {
+                Text("At least \(Player.passwordRange.lowerBound) characters.")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .accessibilityIdentifier("code-sent-to")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 18)
+                    .accessibilityIdentifier("password-hint")
             }
-            TextField("Code", text: $code)
-                .textContentType(.oneTimeCode)
-                .keyboardType(.numberPad)
-                .font(.system(.title2, design: .rounded).weight(.semibold).monospacedDigit())
-                .multilineTextAlignment(.center)
-                .focused($focus, equals: .code)
-                .onChange(of: code) { _, new in
-                    let clean = Player.cleanCode(new)
-                    if clean != new { code = clean }
-                }
-                .padding(.horizontal, 18)
-                .frame(height: 54)
-                .glassPanel(Capsule())
-                .accessibilityIdentifier("code-field")
-            Button(action: verifyCode) {
-                Text("Sign In")
+
+            Button(action: submit) {
+                Text(mode == .create ? "Create Account" : "Sign In")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
@@ -323,47 +290,28 @@ struct AccountView: View {
             .buttonBorderShape(.capsule)
             .controlSize(.large)
             .disabled(!ready || working)
-            .accessibilityIdentifier("verify-code")
-            HStack(spacing: 20) {
-                Button("Send a New Code", action: sendCode)
-                    .accessibilityIdentifier("resend-code")
-                Button("Use Another Email", action: useAnotherEmail)
-                    .accessibilityIdentifier("change-email")
+            .accessibilityIdentifier("email-submit")
+        }
+    }
+
+    private func submit() {
+        let address = email
+        let secret = password
+        guard Player.looksLikeEmail(address), !secret.isEmpty else { return }
+        focus = nil
+        let creating = mode == .create
+        run {
+            do {
+                if creating {
+                    try await account.signUp(email: address, password: secret)
+                } else {
+                    try await account.signIn(email: address, password: secret)
+                }
+            } catch AccountError.accountExists {
+                // They have one already: switch to signing in, keeping what they typed.
+                mode = .signIn
+                throw AccountError.accountExists
             }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .buttonStyle(.plain)
-            .disabled(working)
-        }
-    }
-
-    private func sendCode() {
-        let address = email.trimmingCharacters(in: .whitespaces).lowercased()
-        guard Player.looksLikeEmail(address) else { return }
-        focus = nil
-        run {
-            try await account.sendEmailCode(to: address)
-            code = ""
-            codeSentTo = address
-            if account.emailCodes { focus = .code }
-        }
-    }
-
-    private func useAnotherEmail() {
-        codeSentTo = nil
-        code = ""
-        problem = nil
-        focus = .email
-    }
-
-    private func verifyCode() {
-        guard let address = codeSentTo else { return }
-        focus = nil
-        run {
-            try await account.verifyEmailCode(email: address, code: code)
-            codeSentTo = nil
-            code = ""
-            email = ""
         }
     }
 

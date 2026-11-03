@@ -3,16 +3,18 @@ import Foundation
 
 /// A pretend account server on the phone for the automatic checks, which
 /// have no Google account. Launched with -mockAccount (and -mockSignedIn to
-/// start signed in). Continue with Google signs in as Alex Rivera; email
-/// sign-in takes any address, then the code 123456 or any
-/// dominoes://login-callback link without an error in it.
+/// start signed in). Continue with Google signs in as Alex Rivera. Email
+/// accounts live only until the app quits; one is there from the start,
+/// jordan@example.com with the password dominoes1, for signing in.
 @MainActor
 final class MockAccountService: AccountService {
     static let me = Player(id: "mock-me", name: "Alex Rivera", email: "alex.rivera@example.com", avatarURL: nil)
+    static let existingEmail = "jordan@example.com"
+    static let existingPassword = "dominoes1"
 
     private var player: Player?
-    /// Where the last sign-in email went.
-    private var emailedTo: String?
+    /// Email accounts made so far: address to password.
+    private var accounts = [existingEmail: existingPassword]
 
     init(signedIn: Bool) {
         player = signedIn ? Self.me : nil
@@ -26,17 +28,21 @@ final class MockAccountService: AccountService {
         return Self.me
     }
 
-    static let emailCode = "123456"
-
-    func sendEmailCode(to email: String) async throws {
+    func signUp(email: String, password: String) async throws -> Player {
         try await Task.sleep(for: .milliseconds(300))
-        emailedTo = email
+        guard accounts[email] == nil else { throw AccountError.accountExists }
+        accounts[email] = password
+        return signedIn(as: email)
     }
 
-    func verifyEmailCode(email: String, code: String) async throws -> Player {
+    func signIn(email: String, password: String) async throws -> Player {
         try await Task.sleep(for: .milliseconds(300))
-        guard code == Self.emailCode else { throw AccountError.wrongCode }
-        let me = Player(id: "mock-email", name: email, email: email, avatarURL: nil, signInMethod: "email")
+        guard accounts[email] == password else { throw AccountError.wrongPassword }
+        return signedIn(as: email)
+    }
+
+    private func signedIn(as email: String) -> Player {
+        let me = Player(id: "mock-\(email)", name: email, email: email, avatarURL: nil, signInMethod: "email")
         player = me
         return me
     }
@@ -47,16 +53,8 @@ final class MockAccountService: AccountService {
 
     func deleteAccount() async throws {
         try await Task.sleep(for: .milliseconds(200))
+        if let email = player?.email { accounts[email] = nil }
         player = nil
-    }
-
-    func signIn(from url: URL) async throws -> Player? {
-        guard SignInLink.isSignInLink(url) else { return nil }
-        try await Task.sleep(for: .milliseconds(300))
-        guard SignInLink.errorCode(in: url) == nil, let email = emailedTo else { throw AccountError.linkDidntWork }
-        let me = Player(id: "mock-email", name: email, email: email, avatarURL: nil, signInMethod: "email")
-        player = me
-        return me
     }
 }
 #endif

@@ -9,21 +9,11 @@ final class AccountSession {
     /// Nil while Accounts.plist still has its placeholders.
     let service: AccountService?
     private(set) var player: Player?
-    /// True when sign-in emails show a six-digit code; otherwise they carry
-    /// a link to tap (Supabase's default emails).
-    let emailCodes: Bool
-    /// Why the last sign-in link didn't work, if it didn't.
-    private(set) var linkProblem: String?
-    /// Counts sign-in links handled, so the app can show the account page
-    /// when one arrives (the app may have been closed while the player was
-    /// in their email).
-    private(set) var linksHandled = 0
 
     var isSetUp: Bool { service != nil }
 
-    init(service: AccountService?, emailCodes: Bool = false) {
+    init(service: AccountService?) {
         self.service = service
-        self.emailCodes = emailCodes
         player = service?.currentPlayer()
     }
 
@@ -31,12 +21,11 @@ final class AccountSession {
     static func make(arguments: [String] = ProcessInfo.processInfo.arguments) -> AccountSession {
         #if DEBUG
         if arguments.contains("-mockAccount") {
-            return AccountSession(service: MockAccountService(signedIn: arguments.contains("-mockSignedIn")),
-                                  emailCodes: arguments.contains("-mockEmailCodes"))
+            return AccountSession(service: MockAccountService(signedIn: arguments.contains("-mockSignedIn")))
         }
         #endif
         guard let config = AccountConfig.load() else { return AccountSession(service: nil) }
-        return AccountSession(service: SupabaseAccountService(config: config), emailCodes: config.emailCodes)
+        return AccountSession(service: SupabaseAccountService(config: config))
     }
 
     /// Picks up a name or picture changed since last time.
@@ -50,16 +39,19 @@ final class AccountSession {
         player = try await service.signInWithGoogle()
     }
 
-    func sendEmailCode(to email: String) async throws {
+    func signUp(email: String, password: String) async throws {
         guard let service else { throw AccountError.notSetUp }
-        linkProblem = nil
-        try await service.sendEmailCode(to: email.trimmingCharacters(in: .whitespaces).lowercased())
+        if let problem = Player.passwordProblem(password) { throw AccountError.weakPassword(problem) }
+        player = try await service.signUp(email: Self.clean(email), password: password)
     }
 
-    func verifyEmailCode(email: String, code: String) async throws {
+    func signIn(email: String, password: String) async throws {
         guard let service else { throw AccountError.notSetUp }
-        player = try await service.verifyEmailCode(email: email.trimmingCharacters(in: .whitespaces).lowercased(),
-                                                   code: Player.cleanCode(code))
+        player = try await service.signIn(email: Self.clean(email), password: password)
+    }
+
+    private static func clean(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespaces).lowercased()
     }
 
     func signOut() async {
@@ -71,19 +63,5 @@ final class AccountSession {
         guard let service else { throw AccountError.notSetUp }
         try await service.deleteAccount()
         player = nil
-    }
-
-    /// A sign-in link from the email, opened on this phone.
-    func handle(_ url: URL) async {
-        guard let service, SignInLink.isSignInLink(url) else { return }
-        do {
-            if let signedIn = try await service.signIn(from: url) {
-                player = signedIn
-                linkProblem = nil
-            }
-        } catch {
-            linkProblem = error.localizedDescription
-        }
-        linksHandled += 1
     }
 }

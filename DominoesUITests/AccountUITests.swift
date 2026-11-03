@@ -1,8 +1,9 @@
 import XCTest
 
-/// Signing in with Google or by email (a link, or a code), on a pretend account server
-/// (-mockAccount), since the checks have no Google account or inbox. Takes the sign-in screenshots and checks
-/// that everything fits on the screen and the game still plays signed out.
+/// Signing in with Google, or with an email and password, on a pretend
+/// account server (-mockAccount), since the checks have no Google account.
+/// Takes the sign-in screenshots and checks that everything fits on the
+/// screen (and above the keyboard) and the game still plays signed out.
 final class AccountUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -27,7 +28,7 @@ final class AccountUITests: XCTestCase {
         let google = app.buttons["sign-in-google"]
         XCTAssertTrue(google.waitForExistence(timeout: 5), "The sign-in page should offer Google")
         sleep(1)
-        assertOnScreen(app, ["sign-in-google", "send-code", "not-now", "account-close"])
+        assertOnScreen(app, ["sign-in-google", "email-submit", "not-now", "account-close"])
         capture("12-sign-in")
 
         google.tap()
@@ -50,11 +51,11 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(google.waitForExistence(timeout: 5), "Signing out should offer Google again")
     }
 
-    /// Email sign-in for people without Google, with Supabase's default
-    /// emails: the address, then the link in the email opens the app signed
-    /// in. An old link is refused.
+    /// Making an account with an email and password, for people without
+    /// Google: a short password is refused with the reason, a good one makes
+    /// the account and signs in at once (no email to wait for).
     @MainActor
-    func testSignInWithEmailLink() throws {
+    func testCreateAccountWithPassword() {
         let app = launch(["-mockAccount"])
         let badge = app.buttons["account"]
         XCTAssertTrue(badge.waitForExistence(timeout: 20))
@@ -62,79 +63,99 @@ final class AccountUITests: XCTestCase {
 
         let field = app.textFields["email-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5), "The sign-in page should offer email")
-        let send = app.buttons["send-code"]
-        XCTAssertEqual(send.label, "Email Me a Link")
-        XCTAssertFalse(send.isEnabled, "No email without an address")
+        let modes = app.segmentedControls.firstMatch
+        XCTAssertTrue(modes.buttons["Create Account"].isSelected, "New players make an account first")
+        let submit = app.buttons["email-submit"]
+        XCTAssertEqual(submit.label, "Create Account")
+        XCTAssertTrue(app.staticTexts["password-hint"].exists, "Creating an account says how long the password must be")
+        XCTAssertFalse(submit.isEnabled, "No account without an email and password")
+
         field.tap()
         field.typeText("sam.lee@example.com")
-        XCTAssertTrue(send.isEnabled)
-        capture("21-email-address")
-        send.tap()
-
-        let sentTo = app.staticTexts["code-sent-to"]
-        XCTAssertTrue(sentTo.waitForExistence(timeout: 5), "After sending, it should say to tap the link")
-        XCTAssertEqual(sentTo.label, "Tap the link in the email sent to sam.lee@example.com. Open it on this phone.")
-        XCTAssertFalse(app.textFields["code-field"].exists, "Default emails have no code to type")
-        sleep(1)
-        assertOnScreen(app, ["open-mail", "resend-code", "change-email", "account-close"])
-        capture("22-email-link")
-
-        // An old or used link comes back with an error and doesn't sign in.
-        openLink(try XCTUnwrap(URL(string: "dominoes://login-callback#error=access_denied&error_code=otp_expired")))
-        XCTAssertTrue(app.staticTexts["account-problem"].waitForExistence(timeout: 5), "An old link should be refused")
+        let password = app.secureTextFields["password-field"]
+        password.tap()
+        password.typeText("short")
+        XCTAssertTrue(submit.isEnabled)
+        submit.tap()
+        let problem = app.staticTexts["account-problem"]
+        XCTAssertTrue(problem.waitForExistence(timeout: 5), "A short password should be refused")
+        XCTAssertEqual(problem.label, "Use at least 8 characters for your password.")
         XCTAssertFalse(app.buttons["sign-out"].exists)
 
-        app.buttons["resend-code"].tap()
-        XCTAssertTrue(app.staticTexts["account-problem"].waitForNonExistence(timeout: 5))
-        openLink(try XCTUnwrap(URL(string: "dominoes://login-callback?code=mock-link")))
-        XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5), "The link should sign in")
+        password.tap()
+        password.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "double99")
+        sleep(1)
+        assertAboveKeyboard(app, ["email-submit"])
+        capture("21-create-account")
+        submit.tap()
+
+        XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5), "A good password should make the account")
         XCTAssertEqual(app.staticTexts["account-name"].label, "sam.lee@example.com")
         sleep(1)
+        assertOnScreen(app, ["sign-out", "delete-account", "account-close"])
         capture("23-email-signed-in")
         app.buttons["account-close"].tap()
         XCTAssertTrue(badge.waitForExistence(timeout: 5))
         XCTAssertEqual(badge.label, "Account, signed in as sam.lee@example.com")
     }
 
-    /// Once the emails show a six-digit code (own email sender set up):
-    /// the address, the code (a wrong one is refused), then signed in.
+    /// Signing in to an account made before: trying to make it again
+    /// switches to Sign In, a wrong password is refused, the right one signs
+    /// in, and the eye button shows what was typed.
     @MainActor
-    func testSignInWithEmailCode() {
-        let app = launch(["-mockAccount", "-mockEmailCodes"])
+    func testSignInWithPassword() {
+        let app = launch(["-mockAccount"])
         let badge = app.buttons["account"]
         XCTAssertTrue(badge.waitForExistence(timeout: 20))
         badge.tap()
 
         let field = app.textFields["email-field"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5), "The sign-in page should offer email")
-        let send = app.buttons["send-code"]
-        XCTAssertFalse(send.isEnabled, "No code without an email address")
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
-        field.typeText("sam.lee@example.com")
-        XCTAssertTrue(send.isEnabled)
-        XCTAssertEqual(send.label, "Email Me a Code")
-        send.tap()
+        field.typeText("jordan@example.com")
+        let password = app.secureTextFields["password-field"]
+        password.tap()
+        password.typeText("wrong-one")
+        let submit = app.buttons["email-submit"]
+        submit.tap()
 
-        let codeField = app.textFields["code-field"]
-        XCTAssertTrue(codeField.waitForExistence(timeout: 5), "After sending, it should ask for the code")
-        XCTAssertEqual(app.staticTexts["code-sent-to"].label, "Enter the code sent to sam.lee@example.com.")
-        let verify = app.buttons["verify-code"]
-        XCTAssertFalse(verify.isEnabled, "No sign-in before six digits")
-        codeField.tap()
-        codeField.typeText("000000")
-        verify.tap()
-        XCTAssertTrue(app.staticTexts["account-problem"].waitForExistence(timeout: 5), "A wrong code should be refused")
+        let problem = app.staticTexts["account-problem"]
+        XCTAssertTrue(problem.waitForExistence(timeout: 5), "An email that has an account can't make another")
+        XCTAssertTrue(problem.label.hasPrefix("There's already an account with that email."), problem.label)
+        let modes = app.segmentedControls.firstMatch
+        XCTAssertTrue(modes.buttons["Sign In"].isSelected, "It should switch to signing in")
+        XCTAssertEqual(submit.label, "Sign In")
+        XCTAssertFalse(app.staticTexts["password-hint"].exists)
 
-        app.buttons["resend-code"].tap()
-        XCTAssertTrue(app.staticTexts["account-problem"].waitForNonExistence(timeout: 5))
+        submit.tap()
+        XCTAssertTrue(problem.waitForExistence(timeout: 5))
+        let wrong = NSPredicate(format: "label BEGINSWITH %@", "That email and password don't match.")
+        expectation(for: wrong, evaluatedWith: problem)
+        waitForExpectations(timeout: 5)
+        XCTAssertFalse(app.buttons["sign-out"].exists, "A wrong password shouldn't sign in")
         sleep(1)
-        codeField.tap()
-        codeField.typeText("123456")
-        capture("22b-email-code")
-        verify.tap()
+        assertOnScreen(app, ["email-submit", "account-close"])
+        capture("22-wrong-password")
 
-        XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5), "The right code should sign in")
-        XCTAssertEqual(app.staticTexts["account-name"].label, "sam.lee@example.com")
+        password.tap()
+        password.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 10) + "dominoes1")
+        app.buttons["show-password"].tap()
+        let shown = app.textFields["password-field"]
+        XCTAssertTrue(shown.waitForExistence(timeout: 3), "The eye button should show the password")
+        XCTAssertEqual(shown.value as? String, "dominoes1")
+        sleep(1)
+        assertAboveKeyboard(app, ["email-submit"])
+        capture("24-sign-in-password")
+        submit.tap()
+
+        XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5), "The right password should sign in")
+        XCTAssertEqual(app.staticTexts["account-name"].label, "jordan@example.com")
+
+        // Signing out leaves a fresh form.
+        app.buttons["sign-out"].tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["email-submit"].label, "Create Account")
+        XCTAssertFalse(app.buttons["email-submit"].isEnabled)
     }
 
     /// Delete Account asks first, then signs out.
@@ -178,7 +199,7 @@ final class AccountUITests: XCTestCase {
         let google = app.buttons["sign-in-google"]
         XCTAssertTrue(google.waitForExistence(timeout: 5))
         sleep(1)
-        assertOnScreen(app, ["sign-in-google", "send-code", "not-now", "account-close"])
+        assertOnScreen(app, ["sign-in-google", "email-submit", "not-now", "account-close"])
         capture("16-sideways-sign-in")
         google.tap()
         XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5))
@@ -202,19 +223,19 @@ final class AccountUITests: XCTestCase {
         sleep(1)
         capture("18-open-duo-sign-in")
 
-        // The email step, then back to Google.
+        // Signing in with an email and password.
+        app.segmentedControls.firstMatch.buttons["Sign In"].tap()
         let field = app.textFields["email-field"]
         field.tap()
-        field.typeText("sam.lee@example.com")
-        app.buttons["send-code"].tap()
-        XCTAssertTrue(app.buttons["open-mail"].waitForExistence(timeout: 5))
+        field.typeText("jordan@example.com")
+        let password = app.secureTextFields["password-field"]
+        password.tap()
+        password.typeText("dominoes1")
         sleep(1)
-        XCTAssertTrue(app.buttons["change-email"].isHittable, "The keyboard should be away once the email is sent")
-        capture("18b-open-duo-email-link")
-        app.buttons["change-email"].tap()
-        XCTAssertTrue(google.waitForExistence(timeout: 5))
-        google.tap()
+        capture("18b-open-duo-email-password")
+        password.typeText("\n")
         XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["account-name"].label, "jordan@example.com")
         sleep(1)
         capture("19-open-duo-signed-in")
         app.buttons["account-close"].tap()
@@ -225,14 +246,17 @@ final class AccountUITests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Opens a link the way tapping it in Mail does, with the app still
-    /// running (XCUIApplication.open would start the app over).
+    /// Each button sits above the on-screen keyboard. Skipped when the
+    /// simulator types from the Mac's keyboard and shows none.
     @MainActor
-    private func openLink(_ url: URL) {
-        XCUIDevice.shared.system.open(url)
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let open = springboard.buttons["Open"]
-        if open.waitForExistence(timeout: 3) { open.tap() }
+    private func assertAboveKeyboard(_ app: XCUIApplication, _ ids: [String]) {
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.waitForExistence(timeout: 2) else { return }
+        for id in ids {
+            let element = app.buttons[id]
+            XCTAssertLessThanOrEqual(element.frame.maxY, keyboard.frame.minY + 1,
+                                     "\(id) is under the keyboard: \(element.frame), keyboard \(keyboard.frame)")
+        }
     }
 
     @MainActor

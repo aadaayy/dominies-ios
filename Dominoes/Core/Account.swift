@@ -30,8 +30,8 @@ struct Player: Equatable {
         name.split(separator: " ").first.map(String.init) ?? name
     }
 
-    /// A plain check that text looks like an email address before a code is
-    /// sent to it: something@something.something, no spaces.
+    /// A plain check that text looks like an email address before it's used
+    /// to sign in: something@something.something, no spaces.
     static func looksLikeEmail(_ text: String) -> Bool {
         let text = text.trimmingCharacters(in: .whitespaces)
         guard !text.contains(" "), text.count <= 254 else { return false }
@@ -41,9 +41,22 @@ struct Player: Equatable {
         return domain.count >= 2 && domain.allSatisfy { !$0.isEmpty }
     }
 
-    /// The code from a sign-in email, digits only, as typed or pasted.
-    static func cleanCode(_ text: String) -> String {
-        String(text.filter(\.isNumber).prefix(10))
+    /// Shortest and longest password the app takes. Supabase's own minimum
+    /// is 6 by default, so 8 always passes it; 72 is the most it stores.
+    static let passwordRange = 8...72
+
+    /// Why a new password won't do, in plain words, or nil when it's fine.
+    static func passwordProblem(_ password: String) -> String? {
+        if password.count < passwordRange.lowerBound {
+            return "Use at least \(passwordRange.lowerBound) characters for your password."
+        }
+        if password.utf8.count > passwordRange.upperBound {
+            return "That password is too long. Use \(passwordRange.upperBound) characters or fewer."
+        }
+        if password.allSatisfy(\.isWhitespace) {
+            return "Your password can't be only spaces."
+        }
+        return nil
     }
 }
 
@@ -55,10 +68,6 @@ struct Player: Equatable {
 struct AccountConfig: Equatable {
     var url: URL
     var key: String
-    /// True once the project's emails show a six-digit code ({{ .Token }}),
-    /// which Supabase allows only with your own email sender (SMTP). Until
-    /// then its default emails carry a sign-in link instead.
-    var emailCodes: Bool = false
 
     /// The settings from Accounts.plist, or nil while they're placeholders.
     static func load(bundle: Bundle = .main) -> AccountConfig? {
@@ -79,38 +88,11 @@ struct AccountConfig: Equatable {
               // A secret key in the app would let anyone past the database's rules.
               !key.hasPrefix("sb_secret_"),
               let url = URL(string: text), url.scheme == "https", url.host != nil else { return nil }
-        self.init(url: url, key: key, emailCodes: values["EmailCodes"] as? Bool ?? false)
+        self.init(url: url, key: key)
     }
 
-    init(url: URL, key: String, emailCodes: Bool = false) {
+    init(url: URL, key: String) {
         self.url = url
         self.key = key
-        self.emailCodes = emailCodes
-    }
-}
-
-/// The link in a sign-in email, once it has been through Supabase and comes
-/// back to the app as dominoes://login-callback.
-enum SignInLink {
-    static let scheme = "dominoes"
-    static let host = "login-callback"
-
-    static func isSignInLink(_ url: URL) -> Bool {
-        url.scheme?.lowercased() == scheme && url.host?.lowercased() == host
-    }
-
-    /// Supabase's reason when the link didn't work (for example otp_expired
-    /// for an old or already used link), or nil. It can be in the query or
-    /// after the #.
-    static func errorCode(in url: URL) -> String? {
-        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
-        var items = parts.queryItems ?? []
-        if let fragment = parts.fragment {
-            var inner = URLComponents()
-            inner.query = fragment
-            items += inner.queryItems ?? []
-        }
-        let found = items.first { $0.name == "error_code" }?.value ?? items.first { $0.name == "error" }?.value
-        return found.flatMap { $0.isEmpty ? nil : $0 }
     }
 }
