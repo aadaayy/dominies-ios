@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 @main
 struct DominoesApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var account = AccountSession.make()
 
     var body: some Scene {
@@ -73,4 +75,21 @@ struct ScreenPreview<Content: View>: View {
         .background(Color.black)
         .ignoresSafeArea()
     }
+}
+
+/// Regular iPhones play sideways only: there isn't room upright to show who
+/// sits where around the table. The iPhone Duo turns freely (folded it's
+/// nearly square, and open it's already wide).
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        Self.isRegularPhone ? .landscape : .allButUpsideDown
+    }
+
+    /// A long, narrow screen (about 2 to 1): every iPhone but the Duo.
+    static let isRegularPhone: Bool = {
+        let bounds = UIScreen.main.bounds
+        let long = max(bounds.width, bounds.height), short = min(bounds.width, bounds.height)
+        return long / max(short, 1) > 1.7
+    }()
 }

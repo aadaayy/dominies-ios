@@ -173,3 +173,44 @@ enum BoardLayout {
         return laid
     }
 }
+
+/// Where the next tile on each open end would go, so the table can mark both
+/// ends with the number to match and show which way the line is heading.
+struct NextSlot: Hashable {
+    let end: End
+    /// The number a tile needs to go here.
+    let value: Int
+    /// The square half of the next tile that would touch the line (1 by 1).
+    let near: TableRect
+    /// The whole next tile (2 by 1, lying along its row or standing in a turn).
+    let tile: TableRect
+}
+
+extension BoardLayout {
+    /// The spot just past each open end where the next tile would land:
+    /// laid out exactly as a real (non-double) tile would be, so it never
+    /// covers a tile and it follows the line around its turns.
+    static func nextSlots(_ board: Board, halfWidth: Double) -> [NextSlot] {
+        guard !board.isEmpty else { return [] }
+        var slots: [NextSlot] = []
+        for end in [End.left, .right] {
+            guard let value = board.open(end) else { continue }
+            var next = board
+            let probe = Tile(value, value == 0 ? 1 : 0)
+            guard next.place(probe, on: end) else { continue }
+            let branch: Branch = end == .left ? .left : .right
+            guard let laid = lay(next, halfWidth: halfWidth).filter({ $0.branch == branch }).max(by: { $0.step < $1.step }) else { continue }
+            let rect = laid.rect
+            // The near half is the one showing the matched number.
+            let nearFirst = laid.firstFace == value
+            let near: TableRect
+            if laid.isVertical {
+                near = TableRect(x: rect.x, y: nearFirst ? rect.y : rect.y + 1, width: 1, height: 1)
+            } else {
+                near = TableRect(x: nearFirst ? rect.x : rect.x + 1, y: rect.y, width: 1, height: 1)
+            }
+            slots.append(NextSlot(end: end, value: value, near: near, tile: rect))
+        }
+        return slots
+    }
+}

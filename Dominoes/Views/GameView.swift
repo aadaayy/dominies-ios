@@ -1,12 +1,16 @@
 import SwiftUI
 
-/// The table: scores and the three other players at the top, the line of
-/// tiles in the middle and your hand at the bottom. On a short, wide screen
-/// (a phone on its side, the open Duo) the scores and players move to a
-/// column on the left; on the folded Duo they move to a bar on the right.
+/// The game screen. Phones play sideways; the Duo plays either way.
+/// Every layout shows the line of tiles in the middle, your hand along the
+/// bottom (your seat), and the other three players placed where they sit:
+/// Left on your left, Partner across from you, Right on your right. Each
+/// open end of the line shows where the next tile goes and the number it
+/// needs, and the last tile played is outlined in its team's colour.
 struct GameView: View {
     @Bindable var controller: GameController
     var onExit: () -> Void
+    /// Who sits where: around the screen's edges, or on a small table map.
+    var style: TableStyle = LaunchOptions.current.tableStyle
 
     var body: some View {
         GeometryReader { geometry in
@@ -20,28 +24,40 @@ struct GameView: View {
             let folded = !wide && screenHeight / max(screenWidth, 1) < 1.6
             ZStack {
                 Backdrop()
-                if wide {
-                    sideways(size)
-                } else if folded {
-                    foldedDuo(size)
-                } else {
-                    upright(size)
+                switch (wide, folded, style) {
+                case (true, _, .around): aroundWide(size)
+                case (true, _, .map): mapWide(size)
+                case (false, true, .around): aroundFolded(size)
+                case (false, true, .map): mapFolded(size)
+                default: upright(size)
                 }
-                overlays(insets: wide ? EdgeInsets(top: 0, leading: 208, bottom: 0, trailing: 0)
-                                      : folded ? EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: Self.sideBarWidth) : EdgeInsets())
+                overlays(insets: overlayInsets(wide: wide, folded: folded))
             }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: controller.playCount)
         .onDisappear { controller.stop() }
     }
 
+    private func overlayInsets(wide: Bool, folded: Bool) -> EdgeInsets {
+        switch (wide, folded, style) {
+        case (true, _, .map): return EdgeInsets(top: 0, leading: Self.columnWidth + 8, bottom: 0, trailing: 0)
+        case (true, _, .around): return EdgeInsets(top: 44, leading: Self.railWidth, bottom: 0, trailing: Self.railWidth)
+        case (false, true, _): return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: Self.sideBarWidth)
+        default: return EdgeInsets()
+        }
+    }
+
     // MARK: - Layouts
 
     /// Hand tray padding: above the tiles and below them.
     private static let trayPadding: (top: CGFloat, bottom: CGFloat) = (14, 6)
+    static let sideBarWidth: CGFloat = 112
+    static let columnWidth: CGFloat = 200
+    static let railWidth: CGFloat = 80
 
+    /// Upright on a narrow screen (not used on phones, which play sideways,
+    /// but kept so the game still works if the screen turns anyway).
     private func upright(_ size: CGSize) -> some View {
-        // On a narrow screen the hand is two rows of five, so all ten show.
         let rows = size.width < 600 ? 2 : 1
         let perRow: CGFloat = rows == 2 ? 5 : 10
         let byWidth = (size.width - 24 - HandView.spacing * (perRow - 1)) / perRow
@@ -49,24 +65,111 @@ struct GameView: View {
         let handHeight = HandView.height(rows: rows, tileWidth: tileWidth) + Self.trayPadding.top + Self.trayPadding.bottom
         return VStack(spacing: 10) {
             topBar
-            seats(axis: .horizontal)
-                .glassGroup()
-                .padding(.horizontal)
+            HStack(spacing: 8) {
+                ForEach(others) { EdgeSeat(info: $0, lying: true) }
+            }
+            .glassGroup()
             table
             statusLine
             hand(rows: rows).frame(height: handHeight)
         }
     }
 
-    static let sideBarWidth: CGFloat = 112
+    // Around the table
+
+    /// Sideways: the score and leaving along the top with your partner in
+    /// the middle (across from you), Left and Right on the screen's edges
+    /// beside the table, and your hand along the bottom, nearest you.
+    private func aroundWide(_ size: CGSize) -> some View {
+        let handHeight = min(132, max(92, size.height * 0.25))
+        return VStack(spacing: 4) {
+            ZStack {
+                HStack(spacing: 10) {
+                    closeButton
+                    ScoreView(match: controller.match, compactRow: true)
+                        .padding(.horizontal, 14)
+                        .frame(height: 36)
+                        .glassPanel(Capsule())
+                    Spacer()
+                    statusLine
+                }
+                EdgeSeat(info: seat(2), lying: true)
+            }
+            .frame(height: 40)
+            .padding(.horizontal, 8)
+            HStack(spacing: 0) {
+                EdgeSeat(info: seat(1))
+                    .frame(width: Self.railWidth)
+                table
+                EdgeSeat(info: seat(3))
+                    .frame(width: Self.railWidth)
+            }
+            hand(rows: 1)
+                .frame(height: handHeight)
+                .padding(.horizontal, Self.railWidth - 12)
+        }
+    }
+
+    /// The folded Duo: the three other players in a row across the top, in
+    /// the order they sit (Left, Partner across, Right), the table and your
+    /// hand below, and a bar on the right with leaving, the score and the
+    /// game number.
+    private func aroundFolded(_ size: CGSize) -> some View {
+        let tableWidth = size.width - Self.sideBarWidth
+        let handHeight = foldedHandHeight(tableWidth: tableWidth, height: size.height)
+        return HStack(spacing: 0) {
+            VStack(spacing: 8) {
+                HStack(alignment: .top, spacing: 6) {
+                    EdgeSeat(info: seat(1))
+                    Spacer(minLength: 0)
+                    EdgeSeat(info: seat(2))
+                    Spacer(minLength: 0)
+                    EdgeSeat(info: seat(3))
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
+                table
+                statusLine
+                hand(rows: 2).frame(height: handHeight)
+            }
+            .frame(width: tableWidth)
+            sideBar(withMap: false)
+                .frame(width: Self.sideBarWidth)
+        }
+    }
+
+    // Table map
+
+    /// Sideways: a column on the left with leaving, the score and the table
+    /// map; the table and your hand on the right.
+    private func mapWide(_ size: CGSize) -> some View {
+        let handHeight = min(140, max(96, size.height * 0.26))
+        return HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    closeButton
+                    Spacer()
+                }
+                ScoreView(match: controller.match)
+                SeatMap(seats: everyone)
+                    .frame(maxWidth: .infinity)
+                Spacer(minLength: 0)
+                statusLine
+            }
+            .frame(width: Self.columnWidth)
+            .padding(.leading, 8)
+            VStack(spacing: 6) {
+                table
+                hand(rows: 1).frame(height: handHeight)
+            }
+        }
+    }
 
     /// The folded Duo: the table and your hand on the left, and a bar on the
-    /// right with leaving, the score, the game number and the other players.
-    private func foldedDuo(_ size: CGSize) -> some View {
+    /// right with leaving, the score, the game number and the table map.
+    private func mapFolded(_ size: CGSize) -> some View {
         let tableWidth = size.width - Self.sideBarWidth
-        let byWidth = (tableWidth - 24 - HandView.spacing * 4) / 5
-        let tileWidth = min(40, byWidth, size.height * 0.055)
-        let handHeight = HandView.height(rows: 2, tileWidth: tileWidth) + Self.trayPadding.top + Self.trayPadding.bottom
+        let handHeight = foldedHandHeight(tableWidth: tableWidth, height: size.height)
         return HStack(spacing: 0) {
             VStack(spacing: 8) {
                 table
@@ -74,12 +177,18 @@ struct GameView: View {
                 hand(rows: 2).frame(height: handHeight)
             }
             .frame(width: tableWidth)
-            sideBar
+            sideBar(withMap: true)
                 .frame(width: Self.sideBarWidth)
         }
     }
 
-    private var sideBar: some View {
+    private func foldedHandHeight(tableWidth: CGFloat, height: CGFloat) -> CGFloat {
+        let byWidth = (tableWidth - 24 - HandView.spacing * 4) / 5
+        let tileWidth = min(40, byWidth, height * 0.055)
+        return HandView.height(rows: 2, tileWidth: tileWidth) + Self.trayPadding.top + Self.trayPadding.bottom
+    }
+
+    private func sideBar(withMap: Bool) -> some View {
         VStack(spacing: 12) {
             HStack { closeButton; Spacer(minLength: 0) }
             ScoreView(match: controller.match, stacked: true)
@@ -89,35 +198,13 @@ struct GameView: View {
             Text("Game \(controller.match.gameNumber)")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-            seats(axis: .vertical, compact: true)
-                .glassGroup()
+            if withMap {
+                SeatMap(seats: everyone, compact: true)
+            }
             Spacer(minLength: 0)
         }
         .padding(.top, 8)
-        .padding(.horizontal, 6)
-    }
-
-    private func sideways(_ size: CGSize) -> some View {
-        let handHeight = min(140, max(96, size.height * 0.26))
-        return HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    closeButton
-                    Spacer()
-                }
-                ScoreView(match: controller.match)
-                seats(axis: .vertical)
-                    .glassGroup()
-                Spacer(minLength: 0)
-                statusLine
-            }
-            .frame(width: 200)
-            .padding(.leading, 8)
-            VStack(spacing: 6) {
-                table
-                hand(rows: 1).frame(height: handHeight)
-            }
-        }
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Pieces
@@ -154,24 +241,24 @@ struct GameView: View {
         .frame(width: 64, alignment: .leading)
     }
 
-    private func seats(axis: Axis, compact: Bool = false) -> some View {
-        let order = [1, 2, 3]
-        let layout = axis == .horizontal ? AnyLayout(HStackLayout(spacing: 8)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-        return layout {
-            ForEach(order, id: \.self) { seat in
-                SeatChip(name: GameController.names[seat],
-                         team: Team.of(seat: seat),
-                         tiles: controller.game.hands[seat].count,
-                         isTurn: controller.phase == .playing && !controller.game.isOver && controller.game.current == seat,
-                         note: note(for: seat),
-                         compact: compact)
-            }
-        }
+    /// Everyone at the table, you included.
+    private var everyone: [SeatInfo] { Seat.all.map(seat) }
+    /// The three other players, in seat order: Left, Partner, Right.
+    private var others: [SeatInfo] { [1, 2, 3].map(seat) }
+
+    private func seat(_ seat: Int) -> SeatInfo {
+        SeatInfo(seat: seat,
+                 name: GameController.names[seat],
+                 team: Team.of(seat: seat),
+                 tiles: controller.game.hands[seat].count,
+                 isTurn: controller.phase == .playing && !controller.game.isOver && controller.game.current == seat,
+                 last: controller.lastAction(of: seat))
     }
 
     private var table: some View {
         TableView(board: controller.game.board,
-                  lastTile: lastPlayedTile,
+                  lastTile: lastPlay?.tile,
+                  lastColor: lastPlay.map { Theme.color(for: Team.of(seat: $0.seat)) } ?? .accentColor,
                   endChoice: endChoice,
                   onChooseEnd: { controller.play(pendingOn: $0) })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -214,9 +301,15 @@ struct GameView: View {
             .padding(.top, Self.trayPadding.top)
             .padding(.bottom, Self.trayPadding.bottom)
             .background {
+                let tray = UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous)
                 Color.clear
-                    .glassPanel(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous))
+                    .glassPanel(tray, tint: controller.isYourTurn ? Theme.us.opacity(0.12) : nil)
+                    .overlay {
+                        // Your turn: the tray, which is your seat, lights up in your team's colour.
+                        tray.strokeBorder(Theme.us.opacity(controller.isYourTurn ? 0.8 : 0), lineWidth: 2)
+                    }
                     .ignoresSafeArea(edges: .bottom)
+                    .animation(.easeInOut(duration: 0.2), value: controller.isYourTurn)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("hand")
@@ -248,9 +341,10 @@ struct GameView: View {
 
     // MARK: - Helpers
 
-    private var lastPlayedTile: Tile? {
+    /// The tile played last and who played it.
+    private var lastPlay: (tile: Tile, seat: Int)? {
         for action in controller.game.log.reversed() {
-            if case .play(_, let tile, _) = action { return tile }
+            if case .play(let seat, let tile, _) = action { return (tile, seat) }
         }
         return nil
     }
@@ -261,14 +355,6 @@ struct GameView: View {
               let right = controller.game.board.rightOpen else { return nil }
         return (left, right)
     }
-
-    private func note(for seat: Int) -> String? {
-        switch controller.lastAction(of: seat) {
-        case .knock?: return "Knocked"
-        case .play(_, let tile, _)?: return "Played \(tile.low)·\(tile.high)"
-        case nil: return nil
-        }
-    }
 }
 
 /// Us and Them, with the target underneath.
@@ -276,9 +362,24 @@ struct ScoreView: View {
     let match: Match
     /// Us over Them, for the folded Duo's side bar.
     var stacked = false
+    /// One short line, for the sideways top bar.
+    var compactRow = false
 
     var body: some View {
-        if stacked {
+        if compactRow {
+            HStack(spacing: 10) {
+                score("Us", match.score(of: .us), Theme.us)
+                score("Them", match.score(of: .them), Theme.them)
+                Text("to \(match.target)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+            .fixedSize()
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("score")
+        } else if stacked {
             VStack(alignment: .leading, spacing: 4) {
                 score("Us", match.score(of: .us), Theme.us)
                 score("Them", match.score(of: .them), Theme.them)
@@ -316,59 +417,6 @@ struct ScoreView: View {
             Text(name).foregroundStyle(.secondary).fontWeight(.regular)
             Text("\(value)").monospacedDigit()
         }
-    }
-}
-
-/// One of the other players: name, team colour, tiles left and what they did last.
-struct SeatChip: View {
-    let name: String
-    let team: Team
-    let tiles: Int
-    let isTurn: Bool
-    let note: String?
-    /// Narrow, for the folded Duo's side bar: a smaller dot and a shorter note.
-    var compact = false
-
-    var body: some View {
-        let dot: CGFloat = compact ? 12 : 16
-        HStack(spacing: compact ? 4 : 6) {
-            Circle()
-                .fill(Theme.color(for: team))
-                .frame(width: compact ? 7 : 8, height: compact ? 7 : 8)
-                .overlay {
-                    Circle().strokeBorder(Theme.color(for: team).opacity(0.35), lineWidth: isTurn ? dot / 2 - 2 : 0)
-                        .frame(width: dot, height: dot)
-                }
-                .frame(width: dot, height: dot)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(name)
-                    .font(.footnote.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                if let note = compact ? note?.replacingOccurrences(of: "Played ", with: "") : note {
-                    Text(note)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-            }
-            .layoutPriority(1)
-            Spacer(minLength: 0)
-            Text("\(tiles)")
-                .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .fixedSize()
-        }
-        .frame(minHeight: 28)
-        .padding(.horizontal, compact ? 6 : 8)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity)
-        .glassPanel(RoundedRectangle(cornerRadius: 16, style: .continuous),
-                    tint: isTurn ? Theme.color(for: team).opacity(0.25) : nil)
-        .animation(.easeInOut(duration: 0.2), value: isTurn)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("seat-\(name)")
     }
 }
 

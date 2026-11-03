@@ -6,8 +6,12 @@ import UIKit
 /// only once it grows past the edges.
 struct TableView: View {
     let board: Board
-    /// The tile played last, which gets a soft highlight.
+    /// The tile played last, which gets an outline in the colour of the
+    /// team that played it.
     var lastTile: Tile?
+    var lastColor: Color = .accentColor
+    /// Marks each open end with the number to match, where the next tile goes.
+    var showsNextSlots = true
     /// Ends to offer when a tile in your hand fits both.
     var endChoice: (left: Int, right: Int)?
     var onChooseEnd: (End) -> Void = { _ in }
@@ -27,7 +31,8 @@ struct TableView: View {
             let size = geometry.size
             let halfWidth = BoardLayout.halfWidth(forTableWidth: Double(size.width), idealTileLength: Self.idealTileLength)
             let laid = BoardLayout.lay(board, halfWidth: halfWidth)
-            let frame = Self.frame(for: laid, halfWidth: halfWidth, size: size)
+            let slots = BoardLayout.nextSlots(board, halfWidth: halfWidth)
+            let frame = Self.frame(for: laid, slots: slots, halfWidth: halfWidth, size: size)
 
             ZStack(alignment: .topLeading) {
                 ForEach(laid) { tile in
@@ -39,7 +44,7 @@ struct TableView: View {
                         .overlay {
                             if tile.tile == lastTile {
                                 RoundedRectangle(cornerRadius: frame.unit * 0.18, style: .continuous)
-                                    .strokeBorder(Color.accentColor.opacity(0.55), lineWidth: max(1.5, frame.unit * 0.08))
+                                    .strokeBorder(lastColor.opacity(0.75), lineWidth: max(2, frame.unit * 0.1))
                             }
                         }
                         // Name the tile itself (before positioning, which
@@ -51,9 +56,20 @@ struct TableView: View {
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
                         .allowsHitTesting(false)
                 }
-                if let endChoice, let ends = endTargets(laid: laid, frame: frame) {
-                    endButton(.left, value: endChoice.left, at: ends.left, unit: frame.unit)
-                    endButton(.right, value: endChoice.right, at: ends.right, unit: frame.unit)
+                if endChoice != nil {
+                    ForEach(slots, id: \.end) { slot in
+                        endButton(slot.end, value: slot.value, at: frame.convert(slot.near).center, unit: frame.unit)
+                    }
+                } else if showsNextSlots {
+                    ForEach(slots, id: \.end) { slot in
+                        NextSlotMark(value: slot.value, unit: frame.unit)
+                            .frame(width: frame.unit * 0.9, height: frame.unit * 0.9)
+                            .position(frame.convert(slot.near).center)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Next tile here needs a \(slot.value)")
+                            .accessibilityIdentifier("next-\(slot.end.rawValue)")
+                            .allowsHitTesting(false)
+                    }
                 }
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
@@ -161,7 +177,7 @@ struct TableView: View {
 
     /// Fits the line in the space. Until it outgrows it, the scale stays put
     /// and the opening tile stays in the middle, so nothing jumps around.
-    static func frame(for laid: [LaidTile], halfWidth: Double, size: CGSize) -> Frame {
+    static func frame(for laid: [LaidTile], slots: [NextSlot] = [], halfWidth: Double, size: CGSize) -> Frame {
         let margin = 8.0
         let width = max(1, Double(size.width) - margin * 2)
         let height = max(1, Double(size.height) - margin * 2)
@@ -170,18 +186,12 @@ struct TableView: View {
         let unit = min(width / restingWidth, idealTileLength / 2)
         var box = TableRect(x: -restingWidth / 2, y: -height / unit / 2, width: restingWidth, height: height / unit)
         if let bounds = BoardLayout.bounds(of: laid) { box = box.union(bounds) }
+        // Keep the next-tile marks on the table too.
+        for slot in slots { box = box.union(slot.near) }
         let fitted = min(unit, width / box.width, height / box.height)
         let originX = margin + width / 2 - box.midX * fitted
         let originY = margin + height / 2 - box.midY * fitted
         return Frame(unit: fitted, originX: originX, originY: originY)
-    }
-
-    /// Where to show the two end buttons: just past each open end.
-    private func endTargets(laid: [LaidTile], frame: Frame) -> (left: CGPoint, right: CGPoint)? {
-        guard let origin = laid.first(where: { $0.branch == .origin }) else { return nil }
-        let leftEnd = laid.filter { $0.branch == .left }.max(by: { $0.step < $1.step }) ?? origin
-        let rightEnd = laid.filter { $0.branch == .right }.max(by: { $0.step < $1.step }) ?? origin
-        return (frame.convert(leftEnd.rect).center, frame.convert(rightEnd.rect).center)
     }
 
     private func endButton(_ end: End, value: Int, at point: CGPoint, unit: Double) -> some View {
@@ -198,6 +208,27 @@ struct TableView: View {
         .position(point)
         .accessibilityIdentifier(end == .left ? "end-left" : "end-right")
         .accessibilityLabel("Play on the \(value) end")
+    }
+}
+
+/// A faint dashed square where the next tile on an end would go, with the
+/// number it needs.
+struct NextSlotMark: View {
+    let value: Int
+    let unit: Double
+
+    var body: some View {
+        let corner = unit * 0.2
+        ZStack {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(Color.secondary.opacity(0.6), style: StrokeStyle(lineWidth: max(1, unit * 0.05), dash: [max(2, unit * 0.14), max(2, unit * 0.1)]))
+            Text("\(value)")
+                .font(.system(size: max(10, unit * 0.5), weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .minimumScaleFactor(0.5)
+        }
     }
 }
 

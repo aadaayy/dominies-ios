@@ -7,7 +7,8 @@ import XCTest
 final class AccountUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
-        XCUIDevice.shared.orientation = .portrait
+        // Regular iPhones play sideways only; the folded Duo plays upright.
+        XCUIDevice.shared.orientation = Self.isDuo ? .portrait : .landscapeLeft
     }
 
     private static var device: String { ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? "" }
@@ -206,7 +207,6 @@ final class AccountUITests: XCTestCase {
         sleep(1)
         assertOnScreen(app, ["sign-out", "delete-account", "account-close"])
         capture("17-sideways-signed-in")
-        XCUIDevice.shared.orientation = .portrait
     }
 
     /// The open Duo, drawn at its real size on the Pro Max.
@@ -283,7 +283,9 @@ final class AccountUITests: XCTestCase {
     @MainActor
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
+        // Sideways pictures get turned the right way up when they're published.
+        let sideways = XCUIDevice.shared.orientation.isLandscape && !name.contains("sideways") && !name.contains("open-duo")
+        attachment.name = sideways ? name + "-sideways" : name
         attachment.lifetime = .keepAlways
         add(attachment)
     }
