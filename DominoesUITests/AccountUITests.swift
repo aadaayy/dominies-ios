@@ -167,7 +167,10 @@ final class AccountUITests: XCTestCase {
         field.typeText("sam.lee@example.com")
         app.buttons["send-code"].tap()
         XCTAssertTrue(app.textFields["code-field"].waitForExistence(timeout: 5))
+        // Put the keyboard away (the shrunken preview can't move out of its way).
+        app.staticTexts["Sign in to Dominoes"].tap()
         sleep(1)
+        XCTAssertTrue(app.buttons["change-email"].isHittable, "Tapping off the fields should put the keyboard away")
         capture("18b-open-duo-email-code")
         app.buttons["change-email"].tap()
         XCTAssertTrue(google.waitForExistence(timeout: 5))

@@ -45,8 +45,12 @@ struct AccountView: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, wide ? 32 : 56)
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                    // Tapping anywhere off the fields puts the keyboard away.
+                    .contentShape(Rectangle())
+                    .onTapGesture { focus = nil }
                 }
                 .scrollBounceBehavior(.basedOnSize)
+                .scrollDismissesKeyboard(.interactively)
                 closeButton
                     .padding(.leading, 16)
                     .padding(.top, 8)
