@@ -98,7 +98,7 @@ struct EdgeSeat: View {
         }
         .animation(.easeInOut(duration: 0.2), value: info.isTurn)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("seat-\(info.name)")
+        .accessibilityIdentifier("seat-\(GameController.names[info.seat])")
     }
 
     private var shape: RoundedRectangle {
