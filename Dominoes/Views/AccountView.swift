@@ -51,7 +51,7 @@ struct AccountView: View {
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.vertical, wide ? 32 : (typing ? 16 : 56))
+                    .padding(.vertical, wide ? 20 : (typing ? 16 : 56))
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height)
                     // Tapping anywhere off the fields puts the keyboard away.
                     .contentShape(Rectangle())
@@ -237,9 +237,9 @@ struct AccountView: View {
             HStack(spacing: 8) {
                 Group {
                     if showingPassword {
-                        TextField("Password", text: $password)
+                        TextField(passwordPrompt, text: $password)
                     } else {
-                        SecureField("Password", text: $password)
+                        SecureField(passwordPrompt, text: $password)
                     }
                 }
                 .textContentType(mode == .create ? .newPassword : .password)
@@ -269,15 +269,6 @@ struct AccountView: View {
             .frame(height: 50)
             .glassPanel(Capsule())
 
-            if mode == .create {
-                Text("At least \(Player.passwordRange.lowerBound) characters.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 18)
-                    .accessibilityIdentifier("password-hint")
-            }
-
             Button(action: submit) {
                 Text(mode == .create ? "Create Account" : "Sign In")
                     .font(.headline)
@@ -292,6 +283,11 @@ struct AccountView: View {
             .disabled(!ready || working)
             .accessibilityIdentifier("email-submit")
         }
+    }
+
+    /// New passwords say how long they must be, right in the empty field.
+    private var passwordPrompt: String {
+        mode == .create ? "Password, at least \(Player.passwordRange.lowerBound) characters" : "Password"
     }
 
     private func submit() {

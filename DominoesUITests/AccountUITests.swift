@@ -67,7 +67,8 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(modes.buttons["Create Account"].isSelected, "New players make an account first")
         let submit = app.buttons["email-submit"]
         XCTAssertEqual(submit.label, "Create Account")
-        XCTAssertTrue(app.staticTexts["password-hint"].exists, "Creating an account says how long the password must be")
+        XCTAssertEqual(app.secureTextFields["password-field"].placeholderValue, "Password, at least 8 characters",
+                       "Creating an account says how long the password must be")
         XCTAssertFalse(submit.isEnabled, "No account without an email and password")
 
         field.tap()
@@ -125,7 +126,6 @@ final class AccountUITests: XCTestCase {
         let modes = app.segmentedControls.firstMatch
         XCTAssertTrue(modes.buttons["Sign In"].isSelected, "It should switch to signing in")
         XCTAssertEqual(submit.label, "Sign In")
-        XCTAssertFalse(app.staticTexts["password-hint"].exists)
 
         submit.tap()
         XCTAssertTrue(problem.waitForExistence(timeout: 5))
