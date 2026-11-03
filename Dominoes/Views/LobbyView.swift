@@ -178,10 +178,13 @@ struct LobbyView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             } else {
-                Label("Waiting for \(state.hostName.map(OnlineJSON.firstName) ?? "the host") to start", systemImage: "hourglass")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("lobby-waiting")
+                HStack(spacing: 6) {
+                    Image(systemName: "hourglass")
+                    Text("Waiting for \(state.hostName.map(OnlineJSON.firstName) ?? "the host") to start")
+                        .accessibilityIdentifier("lobby-waiting")
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
             }
         }
     }

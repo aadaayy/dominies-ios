@@ -142,9 +142,9 @@ final class OnlineUITests: XCTestCase {
         capture("39-online-playing")
 
         app.buttons["close-game"].tap()
-        let later = app.buttons["Come back later"]
+        let later = app.buttons["Come back later"].firstMatch
         XCTAssertTrue(later.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["End it for everyone"].exists, "The host can end the game")
+        XCTAssertTrue(app.buttons["End it for everyone"].firstMatch.exists, "The host can end the game")
         sleep(1)
         capture("40-online-leave-game")
         later.tap()
@@ -164,7 +164,7 @@ final class OnlineUITests: XCTestCase {
         app.buttons["new-game"].tap()
         XCTAssertTrue(app.buttons["disband-room"].waitForExistence(timeout: 5))
         app.buttons["disband-room"].tap()
-        let end = app.buttons["End game"]
+        let end = app.sheets.buttons["End game"].firstMatch
         XCTAssertTrue(end.waitForExistence(timeout: 5))
         sleep(1)
         capture("42-online-end-room")
@@ -184,7 +184,7 @@ final class OnlineUITests: XCTestCase {
         let join = app.buttons["join-Q8M3TZ"]
         XCTAssertTrue(join.waitForExistence(timeout: 20))
         join.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["lobby-waiting"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["lobby-waiting"].waitForExistence(timeout: 5), "The guest waits for Sam")
         XCTAssertFalse(app.buttons["start-game"].exists, "Only the host starts")
         sleep(1)
         assertOnScreen(app, ["back", "leave-room", "invite-friends"])

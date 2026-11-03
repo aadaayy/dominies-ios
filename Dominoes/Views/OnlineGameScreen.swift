@@ -75,7 +75,6 @@ struct OnlineGameScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Dismiss")
             }
-            .accessibilityIdentifier("online-problem")
         } else if let seat = controller.stalledSeat {
             banner {
                 Text("\(controller.names[seat]) hasn't played for a minute")
@@ -85,7 +84,6 @@ struct OnlineGameScreen: View {
                     .controlSize(.small)
                     .accessibilityIdentifier("replace-stalled")
             }
-            .accessibilityIdentifier("stalled-banner")
         }
     }
 
