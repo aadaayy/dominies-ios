@@ -18,8 +18,6 @@ struct LaunchOptions {
     var previewSize: CGSize?
     /// Which team leads the first game, instead of the draw.
     var firstTeam: Team?
-    /// How the game screen shows who sits where, e.g. "-tableStyle map".
-    var tableStyle: TableStyle = .around
 
     static let current = LaunchOptions(arguments: ProcessInfo.processInfo.arguments)
 
@@ -38,7 +36,6 @@ struct LaunchOptions {
             let parts = text.split(separator: "x").compactMap { Double($0) }
             if parts.count == 2 { previewSize = CGSize(width: parts[0], height: parts[1]) }
         }
-        tableStyle = value(after: "-tableStyle").flatMap(TableStyle.init(rawValue:)) ?? .around
         switch value(after: "-firstTeam") {
         case "us": firstTeam = .us
         case "them": firstTeam = .them

@@ -9,8 +9,6 @@ import SwiftUI
 struct GameView: View {
     @Bindable var controller: GameController
     var onExit: () -> Void
-    /// Who sits where: around the screen's edges, or on a small table map.
-    var style: TableStyle = LaunchOptions.current.tableStyle
 
     var body: some View {
         GeometryReader { geometry in
@@ -24,12 +22,12 @@ struct GameView: View {
             let folded = !wide && screenHeight / max(screenWidth, 1) < 1.6
             ZStack {
                 Backdrop()
-                switch (wide, folded, style) {
-                case (true, _, .around): aroundWide(size)
-                case (true, _, .map): mapWide(size)
-                case (false, true, .around): aroundFolded(size)
-                case (false, true, .map): mapFolded(size)
-                default: upright(size)
+                if wide {
+                    aroundWide(size)
+                } else if folded {
+                    aroundFolded(size)
+                } else {
+                    upright(size)
                 }
             }
             .frame(width: size.width, height: size.height)
@@ -41,12 +39,9 @@ struct GameView: View {
     }
 
     private func overlayInsets(wide: Bool, folded: Bool) -> EdgeInsets {
-        switch (wide, folded, style) {
-        case (true, _, .map): return EdgeInsets(top: 0, leading: Self.columnWidth + 8, bottom: 0, trailing: 0)
-        case (true, _, .around): return EdgeInsets(top: 0, leading: Self.railWidth, bottom: 0, trailing: Self.railWidth)
-        case (false, true, _): return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: Self.sideBarWidth)
-        default: return EdgeInsets()
-        }
+        if wide { return EdgeInsets(top: 0, leading: Self.railWidth, bottom: 0, trailing: Self.railWidth) }
+        if folded { return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: Self.sideBarWidth) }
+        return EdgeInsets()
     }
 
     // MARK: - Layouts
@@ -54,7 +49,6 @@ struct GameView: View {
     /// Hand tray padding: above the tiles and below them.
     private static let trayPadding: (top: CGFloat, bottom: CGFloat) = (14, 6)
     static let sideBarWidth: CGFloat = 112
-    static let columnWidth: CGFloat = 200
     static let railWidth: CGFloat = 80
 
     /// Upright on a narrow screen (not used on phones, which play sideways,
@@ -76,8 +70,6 @@ struct GameView: View {
             hand(rows: rows).frame(height: handHeight)
         }
     }
-
-    // Around the table
 
     /// Sideways: the score and leaving along the top with your partner in
     /// the middle (across from you), Left and Right on the screen's edges
@@ -138,51 +130,7 @@ struct GameView: View {
                 hand(rows: 2).frame(height: handHeight)
             }
             .frame(width: tableWidth)
-            sideBar(withMap: false)
-                .frame(width: Self.sideBarWidth)
-        }
-    }
-
-    // Table map
-
-    /// Sideways: a column on the left with leaving, the score and the table
-    /// map; the table and your hand on the right.
-    private func mapWide(_ size: CGSize) -> some View {
-        let handHeight = min(140, max(96, size.height * 0.26))
-        return HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    closeButton
-                    Spacer()
-                }
-                ScoreView(match: controller.match)
-                SeatMap(seats: everyone)
-                    .frame(maxWidth: .infinity)
-                Spacer(minLength: 0)
-                statusLine
-            }
-            .frame(width: Self.columnWidth)
-            .padding(.leading, 8)
-            VStack(spacing: 6) {
-                table
-                hand(rows: 1).frame(height: handHeight)
-            }
-        }
-    }
-
-    /// The folded Duo: the table and your hand on the left, and a bar on the
-    /// right with leaving, the score, the game number and the table map.
-    private func mapFolded(_ size: CGSize) -> some View {
-        let tableWidth = size.width - Self.sideBarWidth
-        let handHeight = foldedHandHeight(tableWidth: tableWidth, height: size.height)
-        return HStack(spacing: 0) {
-            VStack(spacing: 8) {
-                table
-                statusLine
-                hand(rows: 2).frame(height: handHeight)
-            }
-            .frame(width: tableWidth)
-            sideBar(withMap: true)
+            sideBar
                 .frame(width: Self.sideBarWidth)
         }
     }
@@ -193,7 +141,7 @@ struct GameView: View {
         return HandView.height(rows: 2, tileWidth: tileWidth) + Self.trayPadding.top + Self.trayPadding.bottom
     }
 
-    private func sideBar(withMap: Bool) -> some View {
+    private var sideBar: some View {
         VStack(spacing: 12) {
             HStack { closeButton; Spacer(minLength: 0) }
             ScoreView(match: controller.match, stacked: true)
@@ -203,9 +151,6 @@ struct GameView: View {
             Text("Game \(controller.match.gameNumber)")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-            if withMap {
-                SeatMap(seats: everyone, compact: true)
-            }
             Spacer(minLength: 0)
         }
         .padding(.top, 8)
@@ -246,8 +191,6 @@ struct GameView: View {
         .frame(width: 64, alignment: .leading)
     }
 
-    /// Everyone at the table, you included.
-    private var everyone: [SeatInfo] { Seat.all.map(seat) }
     /// The three other players, in seat order: Left, Partner, Right.
     private var others: [SeatInfo] { [1, 2, 3].map(seat) }
 

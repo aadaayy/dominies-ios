@@ -1,15 +1,5 @@
 import SwiftUI
 
-/// How the game screen shows who sits where. Two designs to compare; the
-/// one Alberto picks stays and the other goes.
-enum TableStyle: String, CaseIterable {
-    /// The other players sit at the screen's edges, where they'd sit at a
-    /// real table: Left on the left, Partner across the top, Right on the right.
-    case around
-    /// A small drawing of the table, with everyone in their seat.
-    case map
-}
-
 /// One player as the screen shows them.
 struct SeatInfo: Identifiable {
     let seat: Int
@@ -125,79 +115,5 @@ struct EdgeSeat: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-    }
-}
-
-// MARK: - Table map
-
-/// A small drawing of the table seen from above: you at the bottom, your
-/// partner across, Left and Right on the sides, with play going round the
-/// way the arrow shows. Whoever is playing is filled in their team colour.
-struct SeatMap: View {
-    let seats: [SeatInfo]
-    /// Narrow, for the folded Duo's side bar.
-    var compact = false
-
-    var body: some View {
-        // Taller than wide in the folded Duo's narrow bar, so the seats
-        // don't crowd each other.
-        let side = CGSize(width: compact ? 104 : 184, height: compact ? 150 : 184)
-        let bubble = CGSize(width: compact ? 44 : 62, height: compact ? 34 : 40)
-        ZStack {
-            // The table top.
-            RoundedRectangle(cornerRadius: compact ? 14 : 20, style: .continuous)
-                .fill(Color.primary.opacity(0.05))
-                .overlay {
-                    RoundedRectangle(cornerRadius: compact ? 14 : 20, style: .continuous)
-                        .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
-                }
-                .frame(width: side.width - bubble.width * 0.9, height: side.height - bubble.height * 1.3)
-            // Play goes round this way: you, then Left, Partner, Right.
-            Image(systemName: "arrow.clockwise")
-                .font(.system(size: compact ? 14 : 20, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .accessibilityLabel("Play goes to your left, round the table")
-            ForEach(seats) { info in
-                bubbleView(info, size: bubble)
-                    .position(position(of: info.seat, side: side, bubble: bubble))
-            }
-        }
-        .frame(width: side.width, height: side.height)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("seat-map")
-    }
-
-    private func position(of seat: Int, side: CGSize, bubble: CGSize) -> CGPoint {
-        switch seat {
-        case 1: return CGPoint(x: bubble.width / 2, y: side.height / 2)
-        case 2: return CGPoint(x: side.width / 2, y: bubble.height / 2)
-        case 3: return CGPoint(x: side.width - bubble.width / 2, y: side.height / 2)
-        default: return CGPoint(x: side.width / 2, y: side.height - bubble.height / 2)
-        }
-    }
-
-    private func bubbleView(_ info: SeatInfo, size: CGSize) -> some View {
-        VStack(spacing: 1) {
-            Text(info.name)
-                .font((compact ? Font.caption2 : .caption).weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .foregroundStyle(info.isTurn ? Color.white : Color.primary)
-            if info.seat != 0 {
-                Text("\(info.tiles)")
-                    .font((compact ? Font.caption2 : .caption).monospacedDigit())
-                    .foregroundStyle(info.isTurn ? AnyShapeStyle(Color.white.opacity(0.85)) : AnyShapeStyle(.secondary))
-            }
-        }
-        .padding(.horizontal, 7)
-        .frame(minWidth: size.width, minHeight: size.height)
-        .fixedSize()
-        .glassPanel(Capsule(), tint: info.isTurn ? info.color : nil)
-        .overlay {
-            Capsule().strokeBorder(info.color.opacity(info.isTurn ? 0 : 0.7), lineWidth: 1.5)
-        }
-        .animation(.easeInOut(duration: 0.2), value: info.isTurn)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("seat-\(info.name)")
     }
 }

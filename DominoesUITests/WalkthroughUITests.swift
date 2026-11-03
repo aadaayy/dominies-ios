@@ -95,62 +95,60 @@ final class WalkthroughUITests: XCTestCase {
         capture("phone-held-upright")
     }
 
-    /// The two ways of showing who sits where, for Alberto to pick from, with
-    /// a long line mid-game: around the screen's edges, and a table map.
-    /// Each open end shows where the next tile goes.
+    /// Who sits where, with a long line mid-game: Left, Partner and Right
+    /// around the screen's edges, and each open end showing where the next
+    /// tile goes.
     @MainActor
-    func testTableStyles() throws {
-        for style in ["around", "map"] {
-            var app = launch(["-tableStyle", style, "-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
+    func testSeats() throws {
+        var app = launch(["-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
+        XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
+        sleep(1)
+        for name in ["Left", "Partner", "Right"] {
+            assertFullyOnScreen(app, app.descendants(matching: .any)["seat-\(name)"], "\(name)'s seat")
+        }
+        XCTAssertTrue(app.descendants(matching: .any)["next-left"].exists, "The line's ends should show where the next tile goes")
+        XCTAssertTrue(app.descendants(matching: .any)["next-right"].exists)
+        capture("seats-long-line")
+        try assertNoTilesOverlap(app)
+        try assertNothingCoversTheLine(app)
+        app.terminate()
+
+        // Early on, with your turn.
+        app = launch(["-seed", "11", "-startGame", "-firstTeam", "us", "-botDelay", "0.3"])
+        let leadMe = app.buttons["lead-me"]
+        XCTAssertTrue(leadMe.waitForExistence(timeout: 20))
+        sleep(1)
+        capture("seats-who-leads")
+        assertWholeHandShows(app)
+        leadMe.tap()
+        for _ in 1...4 {
+            guard waitForYourTurn(app) else { break }
+            if app.buttons["knock"].exists { app.buttons["knock"].tap(); continue }
+            let tile = playableTiles(app).firstMatch
+            guard tile.exists else { break }
+            tile.tap()
+            let leftEnd = app.buttons["end-left"]
+            if leftEnd.waitForExistence(timeout: 1) { leftEnd.tap() }
+        }
+        if waitForYourTurn(app) {
+            sleep(1)
+            capture("seats-your-turn")
+        }
+        app.terminate()
+
+        if Self.device.contains("Pro Max") {
+            app = launch(["-openDuoPreview", "-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
             XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
             sleep(1)
-            for name in ["Left", "Partner", "Right"] {
-                assertFullyOnScreen(app, app.descendants(matching: .any)["seat-\(name)"], "\(name)'s seat")
-            }
-            XCTAssertTrue(app.descendants(matching: .any)["next-left"].exists, "The line's ends should show where the next tile goes")
-            XCTAssertTrue(app.descendants(matching: .any)["next-right"].exists)
-            capture("seats-\(style)-long-line")
+            capture("seats-open-duo-long-line")
             try assertNoTilesOverlap(app)
-            try assertNothingCoversTheLine(app)
             app.terminate()
 
-            // Early on, with your turn.
-            app = launch(["-tableStyle", style, "-seed", "11", "-startGame", "-firstTeam", "us", "-botDelay", "0.3"])
-            let leadMe = app.buttons["lead-me"]
-            XCTAssertTrue(leadMe.waitForExistence(timeout: 20))
+            app = launch(["-previewSize", "667x375", "-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
+            XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
             sleep(1)
-            capture("seats-\(style)-who-leads")
-            assertWholeHandShows(app)
-            leadMe.tap()
-            for _ in 1...4 {
-                guard waitForYourTurn(app) else { break }
-                if app.buttons["knock"].exists { app.buttons["knock"].tap(); continue }
-                let tile = playableTiles(app).firstMatch
-                guard tile.exists else { break }
-                tile.tap()
-                let leftEnd = app.buttons["end-left"]
-                if leftEnd.waitForExistence(timeout: 1) { leftEnd.tap() }
-            }
-            if waitForYourTurn(app) {
-                sleep(1)
-                capture("seats-\(style)-your-turn")
-            }
+            capture("seats-small-phone-sideways-long-line")
             app.terminate()
-
-            if Self.device.contains("Pro Max") {
-                app = launch(["-openDuoPreview", "-tableStyle", style, "-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
-                XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
-                sleep(1)
-                capture("seats-\(style)-open-duo-long-line")
-                try assertNoTilesOverlap(app)
-                app.terminate()
-
-                app = launch(["-previewSize", "667x375", "-tableStyle", style, "-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
-                XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
-                sleep(1)
-                capture("seats-\(style)-small-phone-sideways-long-line")
-                app.terminate()
-            }
         }
     }
 
