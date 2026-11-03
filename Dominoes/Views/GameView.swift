@@ -374,16 +374,13 @@ struct ScoreView: View {
 
     var body: some View {
         if compactRow {
-            HStack(spacing: 10) {
-                score("Us", match.score(of: .us), Theme.us)
-                score("Them", match.score(of: .them), Theme.them)
-                Text("to \(match.target)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            // On a small phone, the target and then the team names step
+            // aside (the colours still say which is which).
+            ViewThatFits(in: .horizontal) {
+                compactLine(names: true, target: true)
+                compactLine(names: true, target: false)
+                compactLine(names: false, target: false)
             }
-            .font(.subheadline.weight(.semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("score")
         } else if stacked {
@@ -418,10 +415,25 @@ struct ScoreView: View {
         .accessibilityIdentifier("score")
     }
 
-    private func score(_ name: String, _ value: Int, _ color: Color) -> some View {
+    private func compactLine(names: Bool, target: Bool) -> some View {
+        HStack(spacing: 10) {
+            score(names ? "Us" : nil, match.score(of: .us), Theme.us)
+            score(names ? "Them" : nil, match.score(of: .them), Theme.them)
+            if target {
+                Text("to \(match.target)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.subheadline.weight(.semibold))
+        .lineLimit(1)
+        .fixedSize()
+    }
+
+    private func score(_ name: String?, _ value: Int, _ color: Color) -> some View {
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 7, height: 7)
-            Text(name).foregroundStyle(.secondary).fontWeight(.regular)
+            if let name { Text(name).foregroundStyle(.secondary).fontWeight(.regular) }
             Text("\(value)").monospacedDigit()
         }
     }

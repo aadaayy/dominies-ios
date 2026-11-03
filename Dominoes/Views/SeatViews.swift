@@ -189,7 +189,7 @@ struct SeatMap: View {
                     .foregroundStyle(info.isTurn ? AnyShapeStyle(Color.white.opacity(0.85)) : AnyShapeStyle(.secondary))
             }
         }
-        .padding(.horizontal, 3)
+        .padding(.horizontal, 7)
         .frame(minWidth: size.width, minHeight: size.height)
         .fixedSize()
         .glassPanel(Capsule(), tint: info.isTurn ? info.color : nil)
