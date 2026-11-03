@@ -150,8 +150,9 @@ final class LobbyModel {
         stop()
     }
 
-    private func send(_ call: @escaping (OnlineService) async throws -> OnlineState) {
-        guard !busy, !closed else { return }
+    @discardableResult
+    private func send(_ call: @escaping (OnlineService) async throws -> OnlineState) -> Bool {
+        guard !busy, !closed else { return false }
         busy = true
         problem = nil
         Task { @MainActor in
@@ -164,13 +165,12 @@ final class LobbyModel {
                 problem = error.localizedDescription
             }
         }
+        return true
     }
 
     func invite(_ friend: OnlineFriend) {
-        send { [weak self, id] service in
-            let state = try await service.invite(gameID: id, friendID: friend.id)
-            self?.invited.insert(friend.id)
-            return state
+        if send({ [id] service in try await service.invite(gameID: id, friendID: friend.id) }) {
+            invited.insert(friend.id)
         }
     }
     func sit(atLocal local: Int) {

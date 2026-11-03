@@ -1,10 +1,10 @@
 # Dominoes
 
-Double Nine dominoes for iPhone Duo and regular iPhones: you and your partner against two computer players. A clean, quiet look, with tiles that never overlap however long the line gets.
+Double Nine dominoes for iPhone Duo and regular iPhones, mainly with friends online (you and a partner against two others), and against the computer to try it out. A clean, quiet look, with tiles that never overlap however long the line gets.
 
 ## What's in it
 
-1. Home: pick the target score (100, 150, 200 or 250) and how good the opponents are (Easy or Normal), then Play.
+1. Home: Play with Friends, or Play with Computer after picking the target score (100, 150, 200 or 250) and how good the computers are (Easy or Normal).
 2. Partner Double Nine rules: 55 tiles, ten each, no drawing. Turns go to the left and alternate between teams. Anyone dealt five or more doubles means a fresh deal.
 3. The first game's leading team comes from a fair draw; after that the winners lead. When your team leads you choose who plays first, you or your partner.
 4. You must play when you can. With nothing to play you knock (it knocks for you after a moment). Four knocks in a row block the game.
@@ -12,7 +12,8 @@ Double Nine dominoes for iPhone Duo and regular iPhones: you and your partner ag
 6. When a tile fits both ends, the two ends light up and you tap the one you want.
 7. Play upright or sideways. Upright (and on the folded Duo) your ten tiles sit in two rows of five; sideways (and on the open Duo) they sit in one row with the players on the left.
 8. Pinch the table to zoom in and drag to look around. After every tile played it zooms back out to the whole line.
-9. Accounts: the badge in Home's top corner opens Sign in, with Continue with Google, or an email and password for people without Google (Create Account, or Sign In to one made before). Signed in, the badge shows your Google picture (or initials), and the account page has Sign Out and Delete Account. Signing in is optional; the game plays the same without it.
+9. Accounts: the badge in Home's top corner opens Sign in, with Continue with Google, or an email and password for people without Google (Create Account, or Sign In to one made before). Signed in, the badge shows your Google picture (or initials), and the account page has Sign Out and Delete Account. Signing in is optional for playing the computer; playing with friends needs it.
+10. Play with Friends (see Online games below): New game, Join with a six-letter game code, invites from friends, your games in progress, and friends added by their friend codes.
 
 ## How the code is laid out
 
@@ -67,6 +68,18 @@ While Google's Audience says Testing, only the test users you list (up to 100) c
 Later, Sign in with Apple needs the paid Apple Developer Program. Apple's review rules expect it (or a similar private sign-in) next to Google before the app goes on the App Store.
 
 The automatic checks never reach Supabase: they use a pretend account server on the phone (`-mockAccount`, `Dominoes/Account/MockAccountService.swift`), where Google signs in as Alex Rivera, new email accounts last until the app quits, and jordan@example.com with the password dominoes1 is there to sign in to.
+
+## Online games
+
+Games with friends run on the same Supabase project. The server deals, keeps everyone's tiles hidden from the others, checks every move, plays the computer seats and knocks for anyone with nothing to play, so no phone can cheat. Phones see changes live (Supabase Realtime) and also check every few seconds.
+
+1. Friends: everyone has a six-letter friend code on the Play with Friends page. Type a friend's code to add them; adding goes both ways.
+2. New game opens the lobby: the game code to share, the four seats as they sit at the table (you at the bottom, your partner across, the other team on your left and right), Invite to send an invite to a friend, Sit here to change seats, and the host's Play to, Computers and Start game. Empty seats get a computer player.
+3. Invites show up on the friend's Play with Friends page (and as a count on Home) while the app is open. There are no push notifications yet: those need the paid Apple Developer Program. Sharing the game code by message works for anyone.
+4. Leaving the table asks: Come back later keeps your seat, Leave for good gives your tiles to a computer, and the host can End it for everyone. If a friend hasn't played for a minute, anyone can let a computer play for them.
+5. Rooms don't pile up: a room is deleted when the host ends it, when the host leaves before the start, or when the last person leaves. Rooms left alone are cleaned up after a day (finished or never started) or two weeks (anything), whenever someone makes a new game.
+
+The server side is `supabase/migrations/20261103200000_online_games.sql` and `supabase/migrations/20261103210000_delete_empty_rooms.sql`, both already applied (pasted into the SQL Editor). The checks use a pretend server on the phone instead (`-mockOnline`, `Dominoes/Online/MockOnlineService.swift`) with pretend friends Sam Lee and Jordan Park, who join when invited and play their turns.
 
 ## Automatic checks
 

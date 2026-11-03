@@ -20,7 +20,7 @@ final class OnlineTests: XCTestCase {
         XCTAssertEqual(state.people.count, 1)
         XCTAssertEqual(state.names, ["You", "Left", "Partner", "Right"])
         XCTAssertEqual(state.computerSeats, [1, 2, 3])
-        XCTAssertTrue(state.hand.isEmpty)
+        XCTAssertTrue(state.myTiles.isEmpty)
 
         // The live server leaves "you" and "host" empty for computer seats.
         let text = String(decoding: try fixture("lobby_host"), as: UTF8.self)

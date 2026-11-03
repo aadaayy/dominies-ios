@@ -121,8 +121,8 @@ struct OnlineState: Codable, Equatable {
     /// Seconds since the current turn started.
     var turnSeconds: Int?
     var seats: [OnlineSeat]
-    /// Your own tiles.
-    var hand: [[Int]]
+    /// Your own tiles (none before the first deal, when the server sends null).
+    var hand: [[Int]]?
 
     enum CodingKeys: String, CodingKey {
         case id, code, phase, target, level, mySeat, version, score, gameNumber, openingTeam, matchWinner
@@ -147,7 +147,7 @@ struct OnlineState: Codable, Equatable {
 
     func seat(local: Int) -> OnlineSeat? { seats.first { $0.seat == server(local) } }
 
-    var myTiles: [Tile] { hand.compactMap(OnlineJSON.tile) }
+    var myTiles: [Tile] { (hand ?? []).compactMap(OnlineJSON.tile) }
 
     /// Plays and knocks so far this game, with this phone's seat numbers.
     var actions: [Action] { log.compactMap(action) }
