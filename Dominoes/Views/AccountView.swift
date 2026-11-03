@@ -146,6 +146,7 @@ struct AccountView: View {
                     }
                 }
                 .glassPanel(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                problemText
             } else {
                 if !typing {
                     Button {
@@ -172,6 +173,7 @@ struct AccountView: View {
                 }
 
                 emailForm
+                problemText
 
                 if !typing {
                     Button("Not now", action: onClose)
@@ -182,14 +184,19 @@ struct AccountView: View {
                         .accessibilityIdentifier("not-now")
                 }
             }
+        }
+    }
 
-            if let problem {
-                Text(problem)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .accessibilityIdentifier("account-problem")
-            }
+    /// What went wrong, in plain words, right under the button that tried.
+    @ViewBuilder
+    private var problemText: some View {
+        if let problem {
+            Text(problem)
+                .font(.footnote)
+                .foregroundStyle(.red)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("account-problem")
         }
     }
 
