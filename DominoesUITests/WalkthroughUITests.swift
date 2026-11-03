@@ -5,7 +5,8 @@ import XCTest
 final class WalkthroughUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
-        XCUIDevice.shared.orientation = .portrait
+        // Regular iPhones play sideways only; the folded Duo plays upright.
+        XCUIDevice.shared.orientation = Self.isDuo ? .portrait : .landscapeLeft
     }
 
     private static var device: String { ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? "" }
@@ -78,14 +79,76 @@ final class WalkthroughUITests: XCTestCase {
         XCTAssertTrue(fit.waitForNonExistence(timeout: 3), "The whole line should show again")
         sleep(2)
         try assertNoTilesOverlap(app)
+    }
 
-        // The phones play sideways too; the folded Duo stays upright.
-        if !Self.isDuo {
-            XCUIDevice.shared.orientation = .landscapeLeft
-            sleep(2)
-            capture("5-sideways-long-line")
+    /// Regular iPhones only play sideways: held upright, the game stays on its side.
+    @MainActor
+    func testPhonesStaySideways() throws {
+        try XCTSkipIf(Self.isDuo, "The Duo turns freely")
+        XCUIDevice.shared.orientation = .portrait
+        let app = launch(["-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
+        let table = app.descendants(matching: .any)["table"]
+        XCTAssertTrue(table.waitForExistence(timeout: 20))
+        sleep(2)
+        // The picture is taken as the phone is held (upright), so the game
+        // should show on its side in it.
+        capture("phone-held-upright")
+    }
+
+    /// Who sits where, with a long line mid-game: Left, Partner and Right
+    /// around the screen's edges, and each open end showing where the next
+    /// tile goes.
+    @MainActor
+    func testSeats() throws {
+        var app = launch(["-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
+        XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
+        sleep(1)
+        for name in ["Left", "Partner", "Right"] {
+            assertFullyOnScreen(app, app.descendants(matching: .any)["seat-\(name)"], "\(name)'s seat")
+        }
+        XCTAssertTrue(app.descendants(matching: .any)["next-left"].exists, "The line's ends should show where the next tile goes")
+        XCTAssertTrue(app.descendants(matching: .any)["next-right"].exists)
+        capture("seats-long-line")
+        try assertNoTilesOverlap(app)
+        try assertNothingCoversTheLine(app)
+        app.terminate()
+
+        // Early on, with your turn.
+        app = launch(["-seed", "11", "-startGame", "-firstTeam", "us", "-botDelay", "0.3"])
+        let leadMe = app.buttons["lead-me"]
+        XCTAssertTrue(leadMe.waitForExistence(timeout: 20))
+        sleep(1)
+        capture("seats-who-leads")
+        assertWholeHandShows(app)
+        leadMe.tap()
+        for _ in 1...4 {
+            guard waitForYourTurn(app) else { break }
+            if app.buttons["knock"].exists { app.buttons["knock"].tap(); continue }
+            let tile = playableTiles(app).firstMatch
+            guard tile.exists else { break }
+            tile.tap()
+            let leftEnd = app.buttons["end-left"]
+            if leftEnd.waitForExistence(timeout: 1) { leftEnd.tap() }
+        }
+        if waitForYourTurn(app) {
+            sleep(1)
+            capture("seats-your-turn")
+        }
+        app.terminate()
+
+        if Self.device.contains("Pro Max") {
+            app = launch(["-openDuoPreview", "-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
+            XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
+            sleep(1)
+            capture("seats-open-duo-long-line")
             try assertNoTilesOverlap(app)
-            XCUIDevice.shared.orientation = .portrait
+            app.terminate()
+
+            app = launch(["-previewSize", "667x375", "-seed", "5", "-startGame", "-firstTeam", "us", "-demoMoves", "30", "-botDelay", "60"])
+            XCTAssertTrue(app.descendants(matching: .any)["table"].waitForExistence(timeout: 20))
+            sleep(1)
+            capture("seats-small-phone-sideways-long-line")
+            app.terminate()
         }
     }
 
@@ -93,7 +156,6 @@ final class WalkthroughUITests: XCTestCase {
     @MainActor
     func testSidewaysWholeHand() throws {
         try XCTSkipIf(Self.isDuo, "The folded Duo plays upright")
-        XCUIDevice.shared.orientation = .landscapeLeft
         let app = launch(["-seed", "11", "-startGame", "-firstTeam", "us"])
         XCTAssertTrue(app.buttons["lead-me"].waitForExistence(timeout: 20))
         sleep(1)
@@ -153,6 +215,29 @@ final class WalkthroughUITests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    @MainActor
+    private func assertFullyOnScreen(_ app: XCUIApplication, _ element: XCUIElement, _ what: String) {
+        XCTAssertTrue(element.exists, "\(what) is missing")
+        let screen = app.windows.firstMatch.frame
+        XCTAssertTrue(screen.insetBy(dx: -1, dy: -1).contains(element.frame), "\(what) is cut off: \(element.frame) on \(screen)")
+    }
+
+    /// No player's seat sits on top of a tile on the table.
+    @MainActor
+    private func assertNothingCoversTheLine(_ app: XCUIApplication) throws {
+        let tiles = tilesOnTable(app).map(\.frame)
+        for name in ["Left", "Partner", "Right"] {
+            let seat = app.descendants(matching: .any)["seat-\(name)"].frame
+            for tile in tiles {
+                let shared = seat.intersection(tile)
+                if !shared.isNull && shared.width > 1 && shared.height > 1 {
+                    XCTFail("\(name)'s seat covers a tile: \(seat) and \(tile)")
+                    return
+                }
+            }
+        }
+    }
 
     @MainActor
     private func launch(_ arguments: [String]) -> XCUIApplication {
@@ -235,7 +320,9 @@ final class WalkthroughUITests: XCTestCase {
     @MainActor
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
+        // Sideways pictures get turned the right way up when they're published.
+        let sideways = XCUIDevice.shared.orientation.isLandscape && !name.contains("sideways") && !name.contains("open-duo")
+        attachment.name = sideways ? name + "-sideways" : name
         attachment.lifetime = .keepAlways
         add(attachment)
     }

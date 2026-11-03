@@ -38,20 +38,22 @@ struct AccountView: View {
                             HStack(alignment: .center, spacing: 40) {
                                 header
                                     .frame(maxWidth: .infinity)
-                                actions
+                                // Sideways with the keyboard up there's little
+                                // height left, so the form tightens up.
+                                actions(compact: typing)
                                     .frame(maxWidth: 380)
                             }
                             .frame(maxWidth: 820)
                         } else {
                             VStack(spacing: 28) {
                                 header
-                                actions
+                                actions(compact: false)
                                     .frame(maxWidth: 440)
                             }
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.vertical, wide ? 20 : (typing ? 16 : 56))
+                    .padding(.vertical, wide ? (typing ? 6 : 20) : (typing ? 16 : 56))
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height)
                     // Tapping anywhere off the fields puts the keyboard away.
                     .contentShape(Rectangle())
@@ -133,8 +135,8 @@ struct AccountView: View {
     }
 
     @ViewBuilder
-    private var actions: some View {
-        VStack(spacing: 12) {
+    private func actions(compact: Bool) -> some View {
+        VStack(spacing: compact ? 8 : 12) {
             if account.player != nil {
                 VStack(spacing: 0) {
                     row("Sign Out", systemImage: "rectangle.portrait.and.arrow.right", id: "sign-out") {
@@ -172,7 +174,7 @@ struct AccountView: View {
                     orDivider
                 }
 
-                emailForm
+                emailForm(compact: compact)
                 problemText
 
                 if !typing {
@@ -213,9 +215,13 @@ struct AccountView: View {
 
     /// For people without Google: an email and a password, to make an
     /// account or to sign in to one. No email is sent either way.
-    private var emailForm: some View {
+    /// Compact (sideways, keyboard up): shorter fields, and the Create
+    /// Account / Sign In switch steps aside (the button still says which).
+    private func emailForm(compact: Bool) -> some View {
         let ready = Player.looksLikeEmail(email) && !password.isEmpty
-        return VStack(spacing: 10) {
+        let fieldHeight: CGFloat = compact ? 42 : 50
+        return VStack(spacing: compact ? 8 : 10) {
+            if !compact {
             Picker("Account", selection: Binding(get: { mode }, set: { new in
                 mode = new
                 problem = nil
@@ -227,6 +233,7 @@ struct AccountView: View {
             .disabled(working)
             .padding(.bottom, 2)
             .accessibilityIdentifier("email-mode")
+            }
 
             TextField("Email address", text: $email)
                 .textContentType(.username)
@@ -237,7 +244,7 @@ struct AccountView: View {
                 .focused($focus, equals: .email)
                 .onSubmit { focus = .password }
                 .padding(.horizontal, 18)
-                .frame(height: 50)
+                .frame(height: fieldHeight)
                 .glassPanel(Capsule())
                 .accessibilityIdentifier("email-field")
 
@@ -273,7 +280,7 @@ struct AccountView: View {
             }
             .padding(.leading, 18)
             .padding(.trailing, 10)
-            .frame(height: 50)
+            .frame(height: fieldHeight)
             .glassPanel(Capsule())
 
             Button(action: submit) {
@@ -286,7 +293,7 @@ struct AccountView: View {
             }
             .prominentGlassButton()
             .buttonBorderShape(.capsule)
-            .controlSize(.large)
+            .controlSize(compact ? .regular : .large)
             .disabled(!ready || working)
             .accessibilityIdentifier("email-submit")
         }

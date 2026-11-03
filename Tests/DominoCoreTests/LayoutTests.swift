@@ -34,6 +34,35 @@ final class LayoutTests: XCTestCase {
         }
     }
 
+    /// The "next tile goes here" marks at both ends never cover a tile and
+    /// always touch the end they belong to, after every play of real games.
+    func testNextTileSlotsSitClearOfTheLine() throws {
+        var rng = SeededGenerator(seed: 77)
+        for halfWidth in stride(from: 4.0, through: 14.0, by: 2.0) {
+            for number in 0..<60 {
+                let deal = Game.deal(using: &rng)
+                var game = Game(hands: deal.hands, boneyard: deal.boneyard, starter: number % 4)
+                let levels: [BotLevel] = [.normal, .easy, .normal, .easy]
+                while !game.isOver {
+                    try Simulation.playOn(&game, levels: levels, moves: 1, using: &rng)
+                    let laid = BoardLayout.lay(game.board, halfWidth: halfWidth)
+                    let slots = BoardLayout.nextSlots(game.board, halfWidth: halfWidth)
+                    XCTAssertEqual(slots.count, 2)
+                    for slot in slots {
+                        XCTAssertEqual(slot.value, game.board.open(slot.end))
+                        for tile in laid where tile.rect.overlaps(slot.tile) {
+                            XCTFail("The \(slot.end) slot covers \(tile.tile) at half width \(halfWidth)")
+                            return
+                        }
+                        let endTile = laid.filter { $0.branch == (slot.end == .left ? .left : .right) }.max(by: { $0.step < $1.step })
+                            ?? laid.first { $0.branch == .origin }!
+                        XCTAssertTrue(endTile.rect.touches(slot.near), "The \(slot.end) slot should touch the end tile")
+                    }
+                }
+            }
+        }
+    }
+
     func testTheOpeningTileIsInTheMiddle() {
         var board = Board()
         board.place(Tile(9, 9), on: nil)
