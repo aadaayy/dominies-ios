@@ -55,6 +55,10 @@ struct Player: Equatable {
 struct AccountConfig: Equatable {
     var url: URL
     var key: String
+    /// True once the project's emails show a six-digit code ({{ .Token }}),
+    /// which Supabase allows only with your own email sender (SMTP). Until
+    /// then its default emails carry a sign-in link instead.
+    var emailCodes: Bool = false
 
     /// The settings from Accounts.plist, or nil while they're placeholders.
     static func load(bundle: Bundle = .main) -> AccountConfig? {
@@ -75,11 +79,38 @@ struct AccountConfig: Equatable {
               // A secret key in the app would let anyone past the database's rules.
               !key.hasPrefix("sb_secret_"),
               let url = URL(string: text), url.scheme == "https", url.host != nil else { return nil }
-        self.init(url: url, key: key)
+        self.init(url: url, key: key, emailCodes: values["EmailCodes"] as? Bool ?? false)
     }
 
-    init(url: URL, key: String) {
+    init(url: URL, key: String, emailCodes: Bool = false) {
         self.url = url
         self.key = key
+        self.emailCodes = emailCodes
+    }
+}
+
+/// The link in a sign-in email, once it has been through Supabase and comes
+/// back to the app as dominoes://login-callback.
+enum SignInLink {
+    static let scheme = "dominoes"
+    static let host = "login-callback"
+
+    static func isSignInLink(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == scheme && url.host?.lowercased() == host
+    }
+
+    /// Supabase's reason when the link didn't work (for example otp_expired
+    /// for an old or already used link), or nil. It can be in the query or
+    /// after the #.
+    static func errorCode(in url: URL) -> String? {
+        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        var items = parts.queryItems ?? []
+        if let fragment = parts.fragment {
+            var inner = URLComponents()
+            inner.query = fragment
+            items += inner.queryItems ?? []
+        }
+        let found = items.first { $0.name == "error_code" }?.value ?? items.first { $0.name == "error" }?.value
+        return found.flatMap { $0.isEmpty ? nil : $0 }
     }
 }

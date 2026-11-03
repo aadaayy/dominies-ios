@@ -9,7 +9,8 @@ protocol AccountService: AnyObject {
     func currentPlayer() -> Player?
     /// Google's sign-in page in a sheet, then back to the app.
     func signInWithGoogle() async throws -> Player
-    /// Emails a one-time sign-in code. Makes the account if it's new.
+    /// Emails a sign-in link (and a six-digit code, once the project's
+    /// emails show one). Makes the account if it's new.
     func sendEmailCode(to email: String) async throws
     /// Signs in with the code from that email.
     func verifyEmailCode(email: String, code: String) async throws -> Player
@@ -18,8 +19,9 @@ protocol AccountService: AnyObject {
     func signOut() async
     /// Deletes the account and its profile, then signs out.
     func deleteAccount() async throws
-    /// The link back from Google's sign-in page, if it arrives as a link.
-    func handle(_ url: URL)
+    /// Signs in from the link in a sign-in email, which comes back to the
+    /// app as dominoes://login-callback. Nil for any other link.
+    func signIn(from url: URL) async throws -> Player?
 }
 
 enum AccountError: LocalizedError, Equatable {
@@ -28,6 +30,7 @@ enum AccountError: LocalizedError, Equatable {
     case wrongCode
     case emailNotAllowed
     case tooManyEmails
+    case linkDidntWork
     case failed(String)
 
     var errorDescription: String? {
@@ -36,7 +39,8 @@ enum AccountError: LocalizedError, Equatable {
         case .cancelled: "Sign in was cancelled."
         case .wrongCode: "That code didn't work. Check the newest email, or send a new code."
         case .emailNotAllowed: "Email sign-in isn't open to everyone yet. Use Google for now."
-        case .tooManyEmails: "Too many codes were sent just now. Try again later, or use Google."
+        case .tooManyEmails: "Too many emails were sent just now. Try again later, or use Google."
+        case .linkDidntWork: "That link didn't sign you in. It may be old or already used, or from another phone. Send a new one and open it on this phone."
         case .failed(let message): message
         }
     }

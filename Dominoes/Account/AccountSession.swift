@@ -9,11 +9,17 @@ final class AccountSession {
     /// Nil while Accounts.plist still has its placeholders.
     let service: AccountService?
     private(set) var player: Player?
+    /// True when sign-in emails show a six-digit code; otherwise they carry
+    /// a link to tap (Supabase's default emails).
+    let emailCodes: Bool
+    /// Why the last sign-in link didn't work, if it didn't.
+    private(set) var linkProblem: String?
 
     var isSetUp: Bool { service != nil }
 
-    init(service: AccountService?) {
+    init(service: AccountService?, emailCodes: Bool = false) {
         self.service = service
+        self.emailCodes = emailCodes
         player = service?.currentPlayer()
     }
 
@@ -21,11 +27,12 @@ final class AccountSession {
     static func make(arguments: [String] = ProcessInfo.processInfo.arguments) -> AccountSession {
         #if DEBUG
         if arguments.contains("-mockAccount") {
-            return AccountSession(service: MockAccountService(signedIn: arguments.contains("-mockSignedIn")))
+            return AccountSession(service: MockAccountService(signedIn: arguments.contains("-mockSignedIn")),
+                                  emailCodes: arguments.contains("-mockEmailCodes"))
         }
         #endif
         guard let config = AccountConfig.load() else { return AccountSession(service: nil) }
-        return AccountSession(service: SupabaseAccountService(config: config))
+        return AccountSession(service: SupabaseAccountService(config: config), emailCodes: config.emailCodes)
     }
 
     /// Picks up a name or picture changed since last time.
@@ -41,6 +48,7 @@ final class AccountSession {
 
     func sendEmailCode(to email: String) async throws {
         guard let service else { throw AccountError.notSetUp }
+        linkProblem = nil
         try await service.sendEmailCode(to: email.trimmingCharacters(in: .whitespaces).lowercased())
     }
 
@@ -61,7 +69,16 @@ final class AccountSession {
         player = nil
     }
 
-    func handle(_ url: URL) {
-        service?.handle(url)
+    /// A sign-in link from the email, opened on this phone.
+    func handle(_ url: URL) async {
+        guard let service else { return }
+        do {
+            if let signedIn = try await service.signIn(from: url) {
+                player = signedIn
+                linkProblem = nil
+            }
+        } catch {
+            linkProblem = error.localizedDescription
+        }
     }
 }

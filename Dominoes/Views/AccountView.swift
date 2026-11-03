@@ -1,18 +1,19 @@
 import SwiftUI
 
 /// The account page, opened from the badge on Home. Signed out it offers
-/// Continue with Google, or a one-time code by email for people without a
-/// Google account; signed in it shows the player and lets them sign out or
+/// Continue with Google, or a sign-in email for people without a Google
+/// account (a link to tap, or a six-digit code once the emails show one); signed in it shows the player and lets them sign out or
 /// delete the account. Playing never needs an account.
 struct AccountView: View {
     var onClose: () -> Void
 
     @Environment(AccountSession.self) private var account
+    @Environment(\.openURL) private var openURL
     @State private var working = false
     @State private var problem: String?
     @State private var confirmingDelete = false
     @State private var email = ""
-    /// Where the code went, once it's sent.
+    /// Where the sign-in email went, once it's sent.
     @State private var codeSentTo: String?
     @State private var code = ""
     @FocusState private var focus: Field?
@@ -57,6 +58,15 @@ struct AccountView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: account.player)
+        // Signed in from the link in the email: start fresh next time.
+        .onChange(of: account.player) { _, player in
+            if player != nil {
+                codeSentTo = nil
+                code = ""
+                email = ""
+                problem = nil
+            }
+        }
         .alert("Delete your account?", isPresented: $confirmingDelete) {
             Button("Delete", role: .destructive) { run { try await account.deleteAccount() } }
             Button("Cancel", role: .cancel) {}
@@ -135,7 +145,11 @@ struct AccountView: View {
                 }
                 .glassPanel(RoundedRectangle(cornerRadius: 22, style: .continuous))
             } else if let sentTo = codeSentTo {
-                codeEntry(sentTo)
+                if account.emailCodes {
+                    codeEntry(sentTo)
+                } else {
+                    linkSent(sentTo)
+                }
             } else {
                 Button {
                     run { try await account.signInWithGoogle() }
@@ -169,7 +183,7 @@ struct AccountView: View {
                     .accessibilityIdentifier("not-now")
             }
 
-            if let problem {
+            if let problem = problem ?? account.linkProblem {
                 Text(problem)
                     .font(.footnote)
                     .foregroundStyle(.red)
@@ -190,7 +204,7 @@ struct AccountView: View {
         .padding(.horizontal, 8)
     }
 
-    /// Step one of email sign-in: the address, then a code is emailed to it.
+    /// Step one of email sign-in: the address, then the email goes to it.
     private var emailEntry: some View {
         let ready = Player.looksLikeEmail(email)
         return VStack(spacing: 10) {
@@ -207,7 +221,7 @@ struct AccountView: View {
                 .glassPanel(Capsule())
                 .accessibilityIdentifier("email-field")
             Button(action: sendCode) {
-                Text("Email Me a Code")
+                Text(account.emailCodes ? "Email Me a Code" : "Email Me a Link")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
@@ -222,7 +236,55 @@ struct AccountView: View {
         }
     }
 
-    /// Step two: the code from the email.
+    /// Step two, with Supabase's default emails: tap the link in the email
+    /// on this phone, and it opens the app signed in.
+    private func linkSent(_ sentTo: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "envelope.badge")
+                .font(.system(size: 40))
+                .foregroundStyle(.tint)
+                .symbolRenderingMode(.hierarchical)
+                .padding(.bottom, 2)
+            VStack(spacing: 4) {
+                Text("Check your email")
+                    .font(.headline)
+                Text("Tap the link in the email sent to \(sentTo). Open it on this phone.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("code-sent-to")
+            }
+            if let mail = URL(string: "message://") {
+                Button {
+                    openURL(mail)
+                } label: {
+                    Text("Open Mail")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .opacity(working ? 0 : 1)
+                        .overlay { if working { ProgressView() } }
+                }
+                .prominentGlassButton()
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
+                .disabled(working)
+                .accessibilityIdentifier("open-mail")
+            }
+            HStack(spacing: 20) {
+                Button("Send a New Link", action: sendCode)
+                    .accessibilityIdentifier("resend-code")
+                Button("Use Another Email", action: useAnotherEmail)
+                    .accessibilityIdentifier("change-email")
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+            .disabled(working)
+        }
+    }
+
+    /// Step two, once the emails show a code: type it in.
     private func codeEntry(_ sentTo: String) -> some View {
         let ready = Player.cleanCode(code).count >= 6
         return VStack(spacing: 12) {
@@ -265,13 +327,8 @@ struct AccountView: View {
             HStack(spacing: 20) {
                 Button("Send a New Code", action: sendCode)
                     .accessibilityIdentifier("resend-code")
-                Button("Use Another Email") {
-                    codeSentTo = nil
-                    code = ""
-                    problem = nil
-                    focus = .email
-                }
-                .accessibilityIdentifier("change-email")
+                Button("Use Another Email", action: useAnotherEmail)
+                    .accessibilityIdentifier("change-email")
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -288,8 +345,15 @@ struct AccountView: View {
             try await account.sendEmailCode(to: address)
             code = ""
             codeSentTo = address
-            focus = .code
+            if account.emailCodes { focus = .code }
         }
+    }
+
+    private func useAnotherEmail() {
+        codeSentTo = nil
+        code = ""
+        problem = nil
+        focus = .email
     }
 
     private func verifyCode() {

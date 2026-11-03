@@ -56,17 +56,22 @@ Google sign-in needs these clicks once:
 7. Authentication > URL Configuration > Redirect URLs: add `dominoes://login-callback`.
 8. Leave Authentication > Sign In / Providers > Email turned on, for people without a Google account.
 
-### Email sign-in (a code, no password)
+### Email sign-in (no password)
 
-Players type their email, get a six-digit code, and type it in. New addresses get an account the first time. Supabase sends a link unless its emails show the code, so once:
+Players type their email and get a sign-in email. New addresses get an account the first time. Nothing to set up for this.
 
-1. Authentication > Emails (Email Templates) > Magic Link: replace the body with:
+With Supabase's default emails (what you have now), the email has a link. Tapping it on the same phone opens the app signed in. It goes through `dominoes://login-callback`, the same Redirect URL as Google (step 7). A link opened on another device, or an old one, doesn't sign in, and the app says to send a new one.
+
+Later, to send a six-digit code instead: Supabase only lets you edit the emails once your own email sender is connected (below). Then:
+
+1. Authentication > Emails > Templates > Magic link or OTP: replace the body with:
    ```html
    <h2>Your Dominoes code</h2>
    <p>Enter this code in the app: <strong>{{ .Token }}</strong></p>
    <p>It works once and expires soon. If you didn't ask for it, ignore this email.</p>
    ```
-2. Do the same for the Confirm signup template (new players get that one first).
+2. Do the same for Confirm sign up (new players get that one first).
+3. In `Dominoes/Account/Accounts.plist`, add `<key>EmailCodes</key><true/>`, so the app asks for the code.
 
 Supabase's own email sender is only for trying things out: it only sends to the email addresses of your Supabase organization's members, and only a few emails an hour. Before other people sign in with email, connect an email service under Authentication > Emails > SMTP Settings (for example Resend, which has a free plan), then raise the email limit under Authentication > Rate Limits. Until then, other people's email sign-ins fail with "Email sign-in isn't open to everyone yet. Use Google for now." Google sign-in has no such limit.
 
@@ -74,7 +79,7 @@ While Google's Audience says Testing, only the test users you list (up to 100) c
 
 Later, Sign in with Apple needs the paid Apple Developer Program. Apple's review rules expect it (or a similar private sign-in) next to Google before the app goes on the App Store.
 
-The automatic checks never reach Supabase: they use a pretend account server on the phone (`-mockAccount`, `Dominoes/Account/MockAccountService.swift`), where the email code is always 123456.
+The automatic checks never reach Supabase: they use a pretend account server on the phone (`-mockAccount`, `Dominoes/Account/MockAccountService.swift`), where any sign-in link works and the email code is always 123456 (with `-mockEmailCodes`).
 
 ## Automatic checks
 

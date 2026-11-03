@@ -14,8 +14,8 @@ struct DominoesApp: App {
                 }
             }
             .environment(account)
-            // The link back from Google's sign-in page.
-            .onOpenURL { account.handle($0) }
+            // The link in a sign-in email, back from Supabase.
+            .onOpenURL { url in Task { await account.handle(url) } }
             .task { await account.refresh() }
         }
     }

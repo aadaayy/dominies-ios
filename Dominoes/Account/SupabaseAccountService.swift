@@ -3,12 +3,12 @@ import Foundation
 import Supabase
 
 /// Accounts on Supabase Auth, in the Dominoes project (its own players,
-/// never the golf app's). Google only for now; Sign in with Apple needs the
+/// never the golf app's): Google, or email. Sign in with Apple needs the
 /// paid Apple Developer Program.
 @MainActor
 final class SupabaseAccountService: AccountService {
-    /// Where Google sends the player back after signing in. It must be in the
-    /// project's Redirect URLs (README, Accounts setup).
+    /// Where Google, and the link in a sign-in email, send the player back.
+    /// It must be in the project's Redirect URLs (README, Accounts setup).
     static let callbackURL = URL(string: "dominoes://login-callback")!
 
     private let client: SupabaseClient
@@ -46,9 +46,10 @@ final class SupabaseAccountService: AccountService {
 
     func sendEmailCode(to email: String) async throws {
         do {
-            // Sends the code from the Magic Link (or Confirm signup) email
-            // template, which must show {{ .Token }} (README, Accounts setup).
-            try await client.auth.signInWithOTP(email: email, shouldCreateUser: true)
+            // Supabase's Magic Link email (Confirm signup for a new player).
+            // Its default carries a link back to the app; once the template
+            // shows {{ .Token }} it carries a code too (README, Accounts setup).
+            try await client.auth.signInWithOTP(email: email, redirectTo: Self.callbackURL, shouldCreateUser: true)
         } catch {
             throw Self.friendly(error)
         }
@@ -95,8 +96,19 @@ final class SupabaseAccountService: AccountService {
         await signOut()
     }
 
-    func handle(_ url: URL) {
-        client.auth.handle(url)
+    func signIn(from url: URL) async throws -> Player? {
+        guard SignInLink.isSignInLink(url) else { return nil }
+        if SignInLink.errorCode(in: url) != nil { throw AccountError.linkDidntWork }
+        do {
+            // Trades the link's one-time code for a session. It only works on
+            // the phone that asked for the email, which holds the other half.
+            let session = try await client.auth.session(from: url)
+            return await refreshProfile() ?? Self.player(session.user)
+        } catch let error as URLError {
+            throw Self.friendly(error)
+        } catch {
+            throw AccountError.linkDidntWork
+        }
     }
 
     private static func player(_ user: User) -> Player {
