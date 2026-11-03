@@ -90,25 +90,33 @@ struct AccountView: View {
                     .labelStyle(.titleAndIcon)
             }
         } else {
+            // While a code is being typed, only the title stays, so the code
+            // and Sign In fit above the keyboard on the folded Duo.
+            let typingCode = codeSentTo != nil
             VStack(spacing: 18) {
-                HStack(spacing: 10) {
-                    DominoView(first: 6, second: 3, isVertical: true)
-                        .frame(width: 30, height: 60)
-                        .rotationEffect(.degrees(-8))
-                    DominoView(first: 9, second: 9, isVertical: true)
-                        .frame(width: 30, height: 60)
-                        .rotationEffect(.degrees(6))
+                if !typingCode {
+                    HStack(spacing: 10) {
+                        DominoView(first: 6, second: 3, isVertical: true)
+                            .frame(width: 30, height: 60)
+                            .rotationEffect(.degrees(-8))
+                        DominoView(first: 9, second: 9, isVertical: true)
+                            .frame(width: 30, height: 60)
+                            .rotationEffect(.degrees(6))
+                    }
                 }
                 VStack(spacing: 8) {
                     Text("Sign in to Dominoes")
                         .font(.title2.weight(.bold))
-                    Text("Make an account with Google or your email so your name comes with you. You can keep playing without one.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 360)
+                    if !typingCode {
+                        Text("Make an account with Google or your email so your name comes with you. You can keep playing without one.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 360)
+                    }
                 }
             }
+            .animation(.easeInOut(duration: 0.25), value: typingCode)
         }
     }
 
