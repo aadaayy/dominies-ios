@@ -99,7 +99,7 @@ struct EdgeSeat: View {
                     TilesLeft(count: info.tiles)
                 }
                 .padding(.vertical, 10)
-                .frame(width: 68)
+                .frame(width: 76)
             }
         }
         .glassPanel(shape, tint: info.isTurn ? info.color.opacity(0.28) : nil)
@@ -139,8 +139,10 @@ struct SeatMap: View {
     var compact = false
 
     var body: some View {
-        let side: CGFloat = compact ? 104 : 184
-        let bubble = CGSize(width: compact ? 40 : 62, height: compact ? 34 : 40)
+        // Taller than wide in the folded Duo's narrow bar, so the seats
+        // don't crowd each other.
+        let side = CGSize(width: compact ? 104 : 184, height: compact ? 150 : 184)
+        let bubble = CGSize(width: compact ? 44 : 62, height: compact ? 34 : 40)
         ZStack {
             // The table top.
             RoundedRectangle(cornerRadius: compact ? 14 : 20, style: .continuous)
@@ -149,7 +151,7 @@ struct SeatMap: View {
                     RoundedRectangle(cornerRadius: compact ? 14 : 20, style: .continuous)
                         .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
                 }
-                .frame(width: side - bubble.width * 0.9, height: side - bubble.height * 1.3)
+                .frame(width: side.width - bubble.width * 0.9, height: side.height - bubble.height * 1.3)
             // Play goes round this way: you, then Left, Partner, Right.
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: compact ? 14 : 20, weight: .medium))
@@ -160,17 +162,17 @@ struct SeatMap: View {
                     .position(position(of: info.seat, side: side, bubble: bubble))
             }
         }
-        .frame(width: side, height: side)
+        .frame(width: side.width, height: side.height)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("seat-map")
     }
 
-    private func position(of seat: Int, side: CGFloat, bubble: CGSize) -> CGPoint {
+    private func position(of seat: Int, side: CGSize, bubble: CGSize) -> CGPoint {
         switch seat {
-        case 1: return CGPoint(x: bubble.width / 2, y: side / 2)
-        case 2: return CGPoint(x: side / 2, y: bubble.height / 2)
-        case 3: return CGPoint(x: side - bubble.width / 2, y: side / 2)
-        default: return CGPoint(x: side / 2, y: side - bubble.height / 2)
+        case 1: return CGPoint(x: bubble.width / 2, y: side.height / 2)
+        case 2: return CGPoint(x: side.width / 2, y: bubble.height / 2)
+        case 3: return CGPoint(x: side.width - bubble.width / 2, y: side.height / 2)
+        default: return CGPoint(x: side.width / 2, y: side.height - bubble.height / 2)
         }
     }
 

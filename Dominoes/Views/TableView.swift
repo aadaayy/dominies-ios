@@ -221,12 +221,12 @@ struct NextSlotMark: View {
         let corner = unit * 0.2
         ZStack {
             RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(Color.primary.opacity(0.05))
+                .fill(Color.primary.opacity(0.06))
             RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(Color.secondary.opacity(0.6), style: StrokeStyle(lineWidth: max(1, unit * 0.05), dash: [max(2, unit * 0.14), max(2, unit * 0.1)]))
+                .strokeBorder(Color.secondary.opacity(0.8), style: StrokeStyle(lineWidth: max(1, unit * 0.05), dash: [max(2, unit * 0.14), max(2, unit * 0.1)]))
             Text("\(value)")
-                .font(.system(size: max(10, unit * 0.5), weight: .semibold, design: .rounded))
-                .foregroundStyle(.secondary)
+                .font(.system(size: max(11, unit * 0.58), weight: .bold, design: .rounded))
+                .foregroundStyle(.primary.opacity(0.7))
                 .minimumScaleFactor(0.5)
         }
     }

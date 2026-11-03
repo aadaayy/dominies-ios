@@ -31,8 +31,10 @@ struct GameView: View {
                 case (false, true, .map): mapFolded(size)
                 default: upright(size)
                 }
-                overlays(insets: overlayInsets(wide: wide, folded: folded))
             }
+            .frame(width: size.width, height: size.height)
+            // Cards float over the table without pushing it around.
+            .overlay { overlays(insets: overlayInsets(wide: wide, folded: folded)) }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: controller.playCount)
         .onDisappear { controller.stop() }
@@ -41,7 +43,7 @@ struct GameView: View {
     private func overlayInsets(wide: Bool, folded: Bool) -> EdgeInsets {
         switch (wide, folded, style) {
         case (true, _, .map): return EdgeInsets(top: 0, leading: Self.columnWidth + 8, bottom: 0, trailing: 0)
-        case (true, _, .around): return EdgeInsets(top: 44, leading: Self.railWidth, bottom: 0, trailing: Self.railWidth)
+        case (true, _, .around): return EdgeInsets(top: 0, leading: Self.railWidth, bottom: 0, trailing: Self.railWidth)
         case (false, true, _): return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: Self.sideBarWidth)
         default: return EdgeInsets()
         }
@@ -83,17 +85,20 @@ struct GameView: View {
     private func aroundWide(_ size: CGSize) -> some View {
         let handHeight = min(132, max(92, size.height * 0.25))
         return VStack(spacing: 4) {
-            ZStack {
-                HStack(spacing: 10) {
+            HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     closeButton
                     ScoreView(match: controller.match, compactRow: true)
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, 12)
                         .frame(height: 36)
                         .glassPanel(Capsule())
-                    Spacer()
-                    statusLine
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // Your partner sits across from you: top middle.
                 EdgeSeat(info: seat(2), lying: true)
+                    .fixedSize()
+                statusLine
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .frame(height: 40)
             .padding(.horizontal, 8)
@@ -272,6 +277,8 @@ struct GameView: View {
             Text(controller.pendingTile == nil ? controller.status : "Tap the end to play on")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(controller.isYourTurn ? .primary : .secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
                 .accessibilityIdentifier("status")
             if controller.isYourTurn && controller.yourMoves.isEmpty {
                 Button("Knock") { controller.knock() }
@@ -376,7 +383,7 @@ struct ScoreView: View {
             }
             .font(.subheadline.weight(.semibold))
             .lineLimit(1)
-            .fixedSize()
+            .minimumScaleFactor(0.7)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("score")
         } else if stacked {
