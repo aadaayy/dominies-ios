@@ -420,7 +420,7 @@ final class GameController {
         if (error as? OnlineError) == .noSuchGame {
             vanished = true
             stop()
-        } else {
+        } else if !(error is CancellationError) {
             problem = error.localizedDescription
             fetch()
         }

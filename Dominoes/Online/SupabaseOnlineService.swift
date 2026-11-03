@@ -20,10 +20,14 @@ final class SupabaseOnlineService: OnlineService {
             return try await client.rpc(function, params: params).execute().data
         } catch let error as PostgrestError {
             throw OnlineError.from(serverMessage: error.message)
-        } catch let error as URLError where error.code != .cancelled {
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch is URLError {
             throw OnlineError.offline
         } catch let error as OnlineError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw OnlineError.failed("Something went wrong. Try again.")
         }

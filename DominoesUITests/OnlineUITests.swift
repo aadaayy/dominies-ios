@@ -309,7 +309,8 @@ final class OnlineUITests: XCTestCase {
     @MainActor
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
+        // Sideways phones: the name tells the checks to turn the picture upright.
+        attachment.name = Self.isDuo ? name : name.replacingOccurrences(of: "-online-", with: "-sideways-online-")
         attachment.lifetime = .keepAlways
         add(attachment)
     }

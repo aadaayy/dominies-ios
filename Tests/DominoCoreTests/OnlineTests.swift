@@ -18,7 +18,7 @@ final class OnlineTests: XCTestCase {
         XCTAssertEqual(state.code.count, 6)
         XCTAssertEqual(state.seats.count, 4)
         XCTAssertEqual(state.people.count, 1)
-        XCTAssertEqual(state.names, ["You", "Left", "Partner", "Right"])
+        XCTAssertEqual(state.names, ["You", "Computer", "Computer", "Computer"])
         XCTAssertEqual(state.computerSeats, [1, 2, 3])
         XCTAssertTrue(state.myTiles.isEmpty)
 

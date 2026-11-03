@@ -235,7 +235,8 @@ struct OnlineState: Codable, Equatable {
         (0..<4).map { local in
             if local == 0 { return "You" }
             guard let seat = seat(local: local), let name = seat.name, seat.person else {
-                return Seat.names[local]
+                // An empty seat is played by a computer once the game starts.
+                return "Computer"
             }
             return OnlineJSON.firstName(name)
         }

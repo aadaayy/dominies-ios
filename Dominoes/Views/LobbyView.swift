@@ -32,13 +32,16 @@ struct LobbyView: View {
                     if wide {
                         HStack(alignment: .top, spacing: 28) {
                             ScrollView {
-                                controls
+                                controls(note: false)
                                     .padding(.bottom, 12)
                             }
                             .scrollBounceBehavior(.basedOnSize)
                             .frame(maxWidth: 330)
-                            seatsTable
-                                .frame(maxWidth: 520, maxHeight: .infinity)
+                            VStack(spacing: 14) {
+                                seatsTable
+                                if state.isHost { noteText }
+                            }
+                            .frame(maxWidth: 520, maxHeight: .infinity)
                         }
                         .padding(.horizontal, 24)
                         .padding(.bottom, 12)
@@ -47,7 +50,7 @@ struct LobbyView: View {
                         ScrollView {
                             VStack(spacing: 20) {
                                 seatsTable
-                                controls
+                                controls(note: true)
                             }
                             .frame(maxWidth: 520)
                             .padding(.horizontal, 20)
@@ -56,6 +59,8 @@ struct LobbyView: View {
                         }
                     }
                 }
+                // The folded Duo keeps its clock and controls down the right.
+                .padding(.trailing, geometry.isFoldedDuo ? GameView.sideBarWidth : 0)
                 if model.closed {
                     Dimmed {
                         ClosedRoomCard(onDone: onLeft)
@@ -88,7 +93,9 @@ struct LobbyView: View {
 
     // MARK: - Code, options, Start
 
-    private var controls: some View {
+    /// The game code, options and Start; `note` puts the computer-seat note
+    /// under Start (when the seats aren't beside it).
+    private func controls(note: Bool) -> some View {
         VStack(spacing: 14) {
             VStack(spacing: 6) {
                 Text("Game code")
@@ -173,10 +180,7 @@ struct LobbyView: View {
                 .controlSize(.large)
                 .disabled(model.busy)
                 .accessibilityIdentifier("start-game")
-                Text(computerNote)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                if note { noteText }
             } else {
                 HStack(spacing: 6) {
                     Image(systemName: "hourglass")
@@ -187,6 +191,13 @@ struct LobbyView: View {
                 .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var noteText: some View {
+        Text(computerNote)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
     }
 
     private var computerNote: String {

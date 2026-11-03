@@ -27,6 +27,8 @@ final class FriendsModel {
         do {
             home = try await service.home()
             if problem == OnlineError.offline.errorDescription { problem = nil }
+        } catch is CancellationError {
+            // The page went away mid-load: nothing to say.
         } catch {
             if home == nil || (error as? OnlineError) == .offline { problem = error.localizedDescription }
         }
@@ -63,6 +65,8 @@ final class FriendsModel {
             let value = try await call(service)
             await load()
             return value
+        } catch is CancellationError {
+            return nil
         } catch {
             problem = error.localizedDescription
             return nil
@@ -161,6 +165,7 @@ final class LobbyModel {
                 apply(try await call(service))
             } catch OnlineError.noSuchGame {
                 roomClosed()
+            } catch is CancellationError {
             } catch {
                 problem = error.localizedDescription
             }
