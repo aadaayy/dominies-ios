@@ -43,7 +43,7 @@ struct LobbyView: View {
                             // Start sits under the seats and the note beside
                             // them, so both columns fit a sideways Pro.
                             VStack(spacing: 14) {
-                                seatsTable
+                                seatsTable(cardWidth: 136)
                                 startArea(note: false)
                                     .frame(maxWidth: 330)
                             }
@@ -55,7 +55,9 @@ struct LobbyView: View {
                     } else {
                         ScrollView {
                             VStack(spacing: 20) {
-                                seatsTable
+                                // Narrow screens (the folded Duo) shrink the side seats so the
+                                // table never runs off the right edge.
+                                seatsTable(cardWidth: max(84, min(136, (min(geometry.size.width, 520) - 40 - 96 - 24) / 2)))
                                 controls(start: true)
                             }
                             .frame(maxWidth: 520)
@@ -65,8 +67,6 @@ struct LobbyView: View {
                         }
                     }
                 }
-                // The folded Duo keeps its clock and controls down the right.
-                .padding(.trailing, geometry.isFoldedDuo ? GameView.sideBarWidth : 0)
                 if model.closed {
                     Dimmed {
                         ClosedRoomCard(onDone: onLeft)
@@ -236,21 +236,21 @@ struct LobbyView: View {
 
     /// You at the bottom, your partner at the top, the other team on your
     /// left and right, the way they'll sit in the game.
-    private var seatsTable: some View {
+    private func seatsTable(cardWidth: CGFloat) -> some View {
         Grid(horizontalSpacing: 12, verticalSpacing: 12) {
             GridRow {
                 Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                seatCard(2)
+                seatCard(2, width: cardWidth)
                 Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
             }
             GridRow {
-                seatCard(1)
+                seatCard(1, width: cardWidth)
                 tableMiddle
-                seatCard(3)
+                seatCard(3, width: cardWidth)
             }
             GridRow {
                 Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                seatCard(0)
+                seatCard(0, width: cardWidth)
                 Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
             }
         }
@@ -274,7 +274,7 @@ struct LobbyView: View {
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(.secondary.opacity(0.25), lineWidth: 0.5))
     }
 
-    private func seatCard(_ local: Int) -> some View {
+    private func seatCard(_ local: Int, width: CGFloat) -> some View {
         let seat = model.seat(local)
         let team = Team.of(seat: local)
         let person = seat?.person == true
@@ -303,7 +303,7 @@ struct LobbyView: View {
                     .accessibilityIdentifier("sit-\(Seat.names[local].lowercased())")
             }
         }
-        .frame(width: 136, height: 72)
+        .frame(width: width, height: 72)
         .glassPanel(RoundedRectangle(cornerRadius: 18, style: .continuous),
                     tint: person || local == 0 ? Theme.color(for: team).opacity(0.10) : nil)
         .accessibilityElement(children: .contain)

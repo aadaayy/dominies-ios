@@ -35,8 +35,6 @@ struct FriendsView: View {
                     }
                     content(wide: wide)
                 }
-                // The folded Duo keeps its clock and controls down the right.
-                .padding(.trailing, geometry.isFoldedDuo ? GameView.sideBarWidth : 0)
             }
         }
         .task(id: "\(account.player?.id ?? "")-\(model != nil)") {
@@ -500,12 +498,3 @@ struct TopBar<Trailing: View>: View {
     }
 }
 
-extension GeometryProxy {
-    /// Upright on the folded Duo, whose screen is much squarer than other
-    /// iPhones' and keeps a bar down its right side (as the game screen does).
-    var isFoldedDuo: Bool {
-        let width = size.width + safeAreaInsets.leading + safeAreaInsets.trailing
-        let height = size.height + safeAreaInsets.top + safeAreaInsets.bottom
-        return size.width <= size.height * 1.2 && height / max(width, 1) < 1.6
-    }
-}
