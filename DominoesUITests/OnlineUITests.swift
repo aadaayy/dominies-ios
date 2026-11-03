@@ -164,7 +164,9 @@ final class OnlineUITests: XCTestCase {
         app.buttons["new-game"].tap()
         XCTAssertTrue(app.buttons["disband-room"].waitForExistence(timeout: 5))
         app.buttons["disband-room"].tap()
-        let end = app.sheets.buttons["End game"].firstMatch
+        // The dialog's button, not the top bar's (a sheet on some phones, a
+        // popover on others).
+        let end = app.buttons.matching(NSPredicate(format: "label == 'End game' AND identifier != 'disband-room'")).firstMatch
         XCTAssertTrue(end.waitForExistence(timeout: 5))
         sleep(1)
         capture("42-online-end-room")

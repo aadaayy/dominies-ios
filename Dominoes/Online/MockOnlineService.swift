@@ -161,11 +161,11 @@ final class MockOnlineService: OnlineService {
         bump(table)
         // The pretend host starts a little later.
         if table.host != Self.me.id {
-            later(table, after: pause * 4) { [weak self] table in
+            later(table, after: pause * 10) { [weak self] table in
                 guard let self, table.phase == .lobby else { return }
                 self.deal(table)
                 if self.hostEnds {
-                    self.later(table, after: self.pause * 3) { [weak self] table in
+                    self.later(table, after: self.pause * 10) { [weak self] table in
                         self?.tables[table.id] = nil
                         self?.changed()
                     }

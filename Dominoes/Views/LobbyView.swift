@@ -32,14 +32,20 @@ struct LobbyView: View {
                     if wide {
                         HStack(alignment: .top, spacing: 28) {
                             ScrollView {
-                                controls(note: false)
-                                    .padding(.bottom, 12)
+                                VStack(spacing: 14) {
+                                    controls(start: false)
+                                    if state.isHost { noteText }
+                                }
+                                .padding(.bottom, 12)
                             }
                             .scrollBounceBehavior(.basedOnSize)
                             .frame(maxWidth: 330)
+                            // Start sits under the seats and the note beside
+                            // them, so both columns fit a sideways Pro.
                             VStack(spacing: 14) {
                                 seatsTable
-                                if state.isHost { noteText }
+                                startArea(note: false)
+                                    .frame(maxWidth: 330)
                             }
                             .frame(maxWidth: 520, maxHeight: .infinity)
                         }
@@ -50,7 +56,7 @@ struct LobbyView: View {
                         ScrollView {
                             VStack(spacing: 20) {
                                 seatsTable
-                                controls(note: true)
+                                controls(start: true)
                             }
                             .frame(maxWidth: 520)
                             .padding(.horizontal, 20)
@@ -93,9 +99,9 @@ struct LobbyView: View {
 
     // MARK: - Code, options, Start
 
-    /// The game code, options and Start; `note` puts the computer-seat note
-    /// under Start (when the seats aren't beside it).
-    private func controls(note: Bool) -> some View {
+    /// The game code and options, and Start too when `start` (otherwise
+    /// it goes under the seats).
+    private func controls(start: Bool) -> some View {
         VStack(spacing: 14) {
             VStack(spacing: 6) {
                 Text("Game code")
@@ -166,30 +172,37 @@ struct LobbyView: View {
                     .multilineTextAlignment(.center)
             }
 
-            if state.isHost {
-                Button {
-                    model.startGame()
-                } label: {
-                    Text("Start game")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                }
-                .prominentGlassButton()
-                .buttonBorderShape(.capsule)
-                .controlSize(.large)
-                .disabled(model.busy)
-                .accessibilityIdentifier("start-game")
-                if note { noteText }
-            } else {
-                HStack(spacing: 6) {
-                    Image(systemName: "hourglass")
-                    Text("Waiting for \(state.hostName.map(OnlineJSON.firstName) ?? "the host") to start")
-                        .accessibilityIdentifier("lobby-waiting")
-                }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+            if start { startArea(note: true) }
+        }
+    }
+
+    /// Start and the computer-seat note for the host; for a guest, who
+    /// they're waiting on.
+    @ViewBuilder
+    private func startArea(note: Bool) -> some View {
+        if state.isHost {
+            Button {
+                model.startGame()
+            } label: {
+                Text("Start game")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
             }
+            .prominentGlassButton()
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .disabled(model.busy)
+            .accessibilityIdentifier("start-game")
+            if note { noteText }
+        } else {
+            HStack(spacing: 6) {
+                Image(systemName: "hourglass")
+                Text("Waiting for \(state.hostName.map(OnlineJSON.firstName) ?? "the host") to start")
+                    .accessibilityIdentifier("lobby-waiting")
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
         }
     }
 
