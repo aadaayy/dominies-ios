@@ -12,7 +12,7 @@ Double Nine dominoes for iPhone Duo and regular iPhones: you and your partner ag
 6. When a tile fits both ends, the two ends light up and you tap the one you want.
 7. Play upright or sideways. Upright (and on the folded Duo) your ten tiles sit in two rows of five; sideways (and on the open Duo) they sit in one row with the players on the left.
 8. Pinch the table to zoom in and drag to look around. After every tile played it zooms back out to the whole line.
-9. Accounts: the badge in Home's top corner opens Sign in, with Continue with Google. Signed in, the badge shows your Google picture (or initials), and the account page has Sign Out and Delete Account. Signing in is optional; the game plays the same without it.
+9. Accounts: the badge in Home's top corner opens Sign in, with Continue with Google, or an email address and a six-digit code sent to it, for people without Google. Signed in, the badge shows your Google picture (or initials), and the account page has Sign Out and Delete Account. Signing in is optional; the game plays the same without it.
 
 ## How the code is laid out
 
@@ -43,7 +43,7 @@ You need a Mac with Xcode 27.1 or later. No simulator is needed.
 
 ## Accounts setup
 
-Accounts run on the Supabase project called **Dominoes** (free plan), kept apart from the golf app's project so the two apps never share players. The app already points at it in `Dominoes/Account/Accounts.plist` (the project URL and its publishable key, both safe in the app and on GitHub). The `profiles` table is made by `supabase/migrations/20261102201913_profiles.sql`, already applied: one row per player with their name and picture, which only they can see or change, plus Delete Account.
+Accounts run on the Supabase project called **Dominoes** (free plan), kept apart from the golf app's project so the two apps never share players. The app already points at it in `Dominoes/Account/Accounts.plist` (the project URL and its publishable key, both safe in the app and on GitHub). The `profiles` table is made by `supabase/migrations/20261102201913_profiles.sql`, already applied: one row per player (Google or email) with their name and picture, which only they can see or change, plus Delete Account.
 
 Google sign-in needs these clicks once:
 
@@ -54,13 +54,27 @@ Google sign-in needs these clicks once:
 5. Clients > Create client. Type: Web application. Under Authorized redirect URIs, paste the Callback URL from step 1. Create, then copy the Client ID and Client secret.
 6. Back in Supabase's Google page: turn Google on, paste the Client ID and Client secret, and save.
 7. Authentication > URL Configuration > Redirect URLs: add `dominoes://login-callback`.
-8. Authentication > Sign In / Providers > Email: turn it off, so Google is the only way in.
+8. Leave Authentication > Sign In / Providers > Email turned on, for people without a Google account.
+
+### Email sign-in (a code, no password)
+
+Players type their email, get a six-digit code, and type it in. New addresses get an account the first time. Supabase sends a link unless its emails show the code, so once:
+
+1. Authentication > Emails (Email Templates) > Magic Link: replace the body with:
+   ```html
+   <h2>Your Dominoes code</h2>
+   <p>Enter this code in the app: <strong>{{ .Token }}</strong></p>
+   <p>It works once and expires soon. If you didn't ask for it, ignore this email.</p>
+   ```
+2. Do the same for the Confirm signup template (new players get that one first).
+
+Supabase's own email sender is only for trying things out: it only sends to the email addresses of your Supabase organization's members, and only a few emails an hour. Before other people sign in with email, connect an email service under Authentication > Emails > SMTP Settings (for example Resend, which has a free plan), then raise the email limit under Authentication > Rate Limits. Until then, other people's email sign-ins fail with "Email sign-in isn't open to everyone yet. Use Google for now." Google sign-in has no such limit.
 
 While Google's Audience says Testing, only the test users you list (up to 100) can sign in. To open it to everyone, press Publish app; the app only asks for name, email and picture, which normally doesn't need Google's review.
 
 Later, Sign in with Apple needs the paid Apple Developer Program. Apple's review rules expect it (or a similar private sign-in) next to Google before the app goes on the App Store.
 
-The automatic checks never reach Supabase: they use a pretend account server on the phone (`-mockAccount`, `Dominoes/Account/MockAccountService.swift`).
+The automatic checks never reach Supabase: they use a pretend account server on the phone (`-mockAccount`, `Dominoes/Account/MockAccountService.swift`), where the email code is always 123456.
 
 ## Automatic checks
 

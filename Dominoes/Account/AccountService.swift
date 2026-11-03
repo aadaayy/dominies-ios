@@ -9,6 +9,10 @@ protocol AccountService: AnyObject {
     func currentPlayer() -> Player?
     /// Google's sign-in page in a sheet, then back to the app.
     func signInWithGoogle() async throws -> Player
+    /// Emails a one-time sign-in code. Makes the account if it's new.
+    func sendEmailCode(to email: String) async throws
+    /// Signs in with the code from that email.
+    func verifyEmailCode(email: String, code: String) async throws -> Player
     /// The name and picture saved in the player's profile, if it loads.
     func refreshProfile() async -> Player?
     func signOut() async
@@ -21,12 +25,18 @@ protocol AccountService: AnyObject {
 enum AccountError: LocalizedError, Equatable {
     case notSetUp
     case cancelled
+    case wrongCode
+    case emailNotAllowed
+    case tooManyEmails
     case failed(String)
 
     var errorDescription: String? {
         switch self {
         case .notSetUp: "Sign-in isn't set up in this copy of the app yet."
         case .cancelled: "Sign in was cancelled."
+        case .wrongCode: "That code didn't work. Check the newest email, or send a new code."
+        case .emailNotAllowed: "Email sign-in isn't open to everyone yet. Use Google for now."
+        case .tooManyEmails: "Too many codes were sent just now. Try again later, or use Google."
         case .failed(let message): message
         }
     }

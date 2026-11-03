@@ -44,6 +44,25 @@ final class SupabaseAccountService: AccountService {
         }
     }
 
+    func sendEmailCode(to email: String) async throws {
+        do {
+            // Sends the code from the Magic Link (or Confirm signup) email
+            // template, which must show {{ .Token }} (README, Accounts setup).
+            try await client.auth.signInWithOTP(email: email, shouldCreateUser: true)
+        } catch {
+            throw Self.friendly(error)
+        }
+    }
+
+    func verifyEmailCode(email: String, code: String) async throws -> Player {
+        do {
+            let response = try await client.auth.verifyOTP(email: email, token: code, type: .email)
+            return await refreshProfile() ?? Self.player(response.user)
+        } catch {
+            throw Self.friendly(error)
+        }
+    }
+
     func refreshProfile() async -> Player? {
         guard let user = client.auth.currentUser else { return nil }
         var player = Self.player(user)
@@ -84,11 +103,20 @@ final class SupabaseAccountService: AccountService {
         let metadata = user.userMetadata
         let name = metadata["full_name"]?.stringValue ?? metadata["name"]?.stringValue ?? user.email ?? "Player"
         let picture = (metadata["avatar_url"]?.stringValue ?? metadata["picture"]?.stringValue).flatMap(URL.init(string:))
-        return Player(id: user.id.uuidString, name: name, email: user.email, avatarURL: picture)
+        let method = user.appMetadata["provider"]?.stringValue == "email" ? "email" : "google"
+        return Player(id: user.id.uuidString, name: name, email: user.email, avatarURL: picture, signInMethod: method)
     }
 
     private static func friendly(_ error: Error) -> Error {
         if let error = error as? AccountError { return error }
+        if let error = error as? AuthError {
+            switch error.errorCode.rawValue {
+            case "otp_expired", "otp_disabled": return AccountError.wrongCode
+            case "email_address_not_authorized": return AccountError.emailNotAllowed
+            case "over_email_send_rate_limit", "over_request_rate_limit": return AccountError.tooManyEmails
+            default: return AccountError.failed(error.message)
+            }
+        }
         if (error as? URLError) != nil {
             return AccountError.failed("No connection. Check your signal and try again.")
         }

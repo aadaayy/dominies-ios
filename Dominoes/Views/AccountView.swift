@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// The account page, opened from the badge on Home. Signed out it offers
-/// Continue with Google; signed in it shows the player and lets them sign
-/// out or delete the account. Playing never needs an account.
+/// Continue with Google, or a one-time code by email for people without a
+/// Google account; signed in it shows the player and lets them sign out or
+/// delete the account. Playing never needs an account.
 struct AccountView: View {
     var onClose: () -> Void
 
@@ -10,6 +11,13 @@ struct AccountView: View {
     @State private var working = false
     @State private var problem: String?
     @State private var confirmingDelete = false
+    @State private var email = ""
+    /// Where the code went, once it's sent.
+    @State private var codeSentTo: String?
+    @State private var code = ""
+    @FocusState private var focus: Field?
+
+    private enum Field { case email, code }
 
     var body: some View {
         GeometryReader { geometry in
@@ -35,7 +43,7 @@ struct AccountView: View {
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.vertical, 56)
+                    .padding(.vertical, wide ? 32 : 56)
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height)
                 }
                 .scrollBounceBehavior(.basedOnSize)
@@ -65,13 +73,14 @@ struct AccountView: View {
                         .font(.title2.weight(.bold))
                         .multilineTextAlignment(.center)
                         .accessibilityIdentifier("account-name")
-                    if let email = player.email {
+                    if let email = player.email, email != player.name {
                         Text(email)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }
-                Label("Signed in with Google", systemImage: "checkmark.seal.fill")
+                Label(player.signInMethod == "email" ? "Signed in with email" : "Signed in with Google",
+                      systemImage: "checkmark.seal.fill")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .labelStyle(.titleAndIcon)
@@ -89,7 +98,7 @@ struct AccountView: View {
                 VStack(spacing: 8) {
                     Text("Sign in to Dominoes")
                         .font(.title2.weight(.bold))
-                    Text("Make an account with Google so your name and picture come with you. You can keep playing without one.")
+                    Text("Make an account with Google or your email so your name comes with you. You can keep playing without one.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -113,6 +122,8 @@ struct AccountView: View {
                     }
                 }
                 .glassPanel(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            } else if let sentTo = codeSentTo {
+                codeEntry(sentTo)
             } else {
                 Button {
                     run { try await account.signInWithGoogle() }
@@ -127,14 +138,16 @@ struct AccountView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
-                    .opacity(working ? 0 : 1)
-                    .overlay { if working { ProgressView() } }
                 }
                 .glassButton()
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
                 .disabled(working)
                 .accessibilityIdentifier("sign-in-google")
+
+                orDivider
+
+                emailEntry
 
                 Button("Not now", action: onClose)
                     .font(.subheadline)
@@ -151,6 +164,130 @@ struct AccountView: View {
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("account-problem")
             }
+        }
+    }
+
+    private var orDivider: some View {
+        HStack(spacing: 12) {
+            Rectangle().fill(.secondary.opacity(0.3)).frame(height: 0.5)
+            Text("or")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Rectangle().fill(.secondary.opacity(0.3)).frame(height: 0.5)
+        }
+        .padding(.horizontal, 8)
+    }
+
+    /// Step one of email sign-in: the address, then a code is emailed to it.
+    private var emailEntry: some View {
+        let ready = Player.looksLikeEmail(email)
+        return VStack(spacing: 10) {
+            TextField("Email address", text: $email)
+                .textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.send)
+                .focused($focus, equals: .email)
+                .onSubmit { if ready { sendCode() } }
+                .padding(.horizontal, 18)
+                .frame(height: 50)
+                .glassPanel(Capsule())
+                .accessibilityIdentifier("email-field")
+            Button(action: sendCode) {
+                Text("Email Me a Code")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .opacity(working ? 0 : 1)
+                    .overlay { if working { ProgressView() } }
+            }
+            .glassButton()
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .disabled(!ready || working)
+            .accessibilityIdentifier("send-code")
+        }
+    }
+
+    /// Step two: the code from the email.
+    private func codeEntry(_ sentTo: String) -> some View {
+        let ready = Player.cleanCode(code).count >= 6
+        return VStack(spacing: 12) {
+            VStack(spacing: 4) {
+                Text("Check your email")
+                    .font(.headline)
+                Text("Enter the code sent to \(sentTo).")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("code-sent-to")
+            }
+            TextField("Code", text: $code)
+                .textContentType(.oneTimeCode)
+                .keyboardType(.numberPad)
+                .font(.system(.title2, design: .rounded).weight(.semibold).monospacedDigit())
+                .multilineTextAlignment(.center)
+                .focused($focus, equals: .code)
+                .onChange(of: code) { _, new in
+                    let clean = Player.cleanCode(new)
+                    if clean != new { code = clean }
+                }
+                .padding(.horizontal, 18)
+                .frame(height: 54)
+                .glassPanel(Capsule())
+                .accessibilityIdentifier("code-field")
+            Button(action: verifyCode) {
+                Text("Sign In")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .opacity(working ? 0 : 1)
+                    .overlay { if working { ProgressView() } }
+            }
+            .prominentGlassButton()
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .disabled(!ready || working)
+            .accessibilityIdentifier("verify-code")
+            HStack(spacing: 20) {
+                Button("Send a New Code", action: sendCode)
+                    .accessibilityIdentifier("resend-code")
+                Button("Use Another Email") {
+                    codeSentTo = nil
+                    code = ""
+                    problem = nil
+                    focus = .email
+                }
+                .accessibilityIdentifier("change-email")
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .buttonStyle(.plain)
+            .disabled(working)
+        }
+    }
+
+    private func sendCode() {
+        let address = email.trimmingCharacters(in: .whitespaces).lowercased()
+        guard Player.looksLikeEmail(address) else { return }
+        focus = nil
+        run {
+            try await account.sendEmailCode(to: address)
+            code = ""
+            codeSentTo = address
+            focus = .code
+        }
+    }
+
+    private func verifyCode() {
+        guard let address = codeSentTo else { return }
+        focus = nil
+        run {
+            try await account.verifyEmailCode(email: address, code: code)
+            codeSentTo = nil
+            code = ""
+            email = ""
         }
     }
 

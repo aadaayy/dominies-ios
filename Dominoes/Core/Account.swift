@@ -8,14 +8,18 @@ struct Player: Equatable {
     var email: String?
     /// Their Google picture, if they have one. Initials show otherwise.
     var avatarURL: URL?
+    /// How they signed in: "google" or "email".
+    var signInMethod: String = "google"
 
     /// Up to two letters for the round badge when there's no picture:
-    /// "Alex Rivera" is AR, "Prince" is P, an email is its first letter.
+    /// "Alex Rivera" is AR, "Prince" is P, "sam.lee@mail.com" is SL.
     var initials: String { Self.initials(for: name) }
 
     static func initials(for name: String) -> String {
+        // An email address: only the part before the @.
+        let name = name.split(separator: "@").first.map(String.init) ?? name
         let words = name
-            .split(whereSeparator: { $0.isWhitespace || $0 == "@" || $0 == "." })
+            .split(whereSeparator: { $0.isWhitespace || $0 == "." || $0 == "_" || $0 == "-" })
             .filter { $0.first?.isLetter == true }
         let letters = [words.first, words.count > 1 ? words.last : nil].compactMap { $0?.first }
         return letters.isEmpty ? "?" : String(letters).uppercased()
@@ -24,6 +28,22 @@ struct Player: Equatable {
     /// The first name, for greetings: "Alex Rivera" is Alex.
     var firstName: String {
         name.split(separator: " ").first.map(String.init) ?? name
+    }
+
+    /// A plain check that text looks like an email address before a code is
+    /// sent to it: something@something.something, no spaces.
+    static func looksLikeEmail(_ text: String) -> Bool {
+        let text = text.trimmingCharacters(in: .whitespaces)
+        guard !text.contains(" "), text.count <= 254 else { return false }
+        let parts = text.split(separator: "@", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty else { return false }
+        let domain = parts[1].split(separator: ".", omittingEmptySubsequences: false)
+        return domain.count >= 2 && domain.allSatisfy { !$0.isEmpty }
+    }
+
+    /// The code from a sign-in email, digits only, as typed or pasted.
+    static func cleanCode(_ text: String) -> String {
+        String(text.filter(\.isNumber).prefix(10))
     }
 }
 

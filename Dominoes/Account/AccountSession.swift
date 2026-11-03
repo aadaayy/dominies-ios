@@ -39,6 +39,17 @@ final class AccountSession {
         player = try await service.signInWithGoogle()
     }
 
+    func sendEmailCode(to email: String) async throws {
+        guard let service else { throw AccountError.notSetUp }
+        try await service.sendEmailCode(to: email.trimmingCharacters(in: .whitespaces).lowercased())
+    }
+
+    func verifyEmailCode(email: String, code: String) async throws {
+        guard let service else { throw AccountError.notSetUp }
+        player = try await service.verifyEmailCode(email: email.trimmingCharacters(in: .whitespaces).lowercased(),
+                                                   code: Player.cleanCode(code))
+    }
+
     func signOut() async {
         await service?.signOut()
         player = nil

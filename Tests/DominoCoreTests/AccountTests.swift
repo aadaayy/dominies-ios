@@ -8,7 +8,8 @@ final class AccountTests: XCTestCase {
         XCTAssertEqual(Player.initials(for: "Ana María de la Cruz"), "AC")
         XCTAssertEqual(Player.initials(for: "Prince"), "P")
         XCTAssertEqual(Player.initials(for: "  sam  "), "S")
-        XCTAssertEqual(Player.initials(for: "jordan@example.com"), "JC")
+        XCTAssertEqual(Player.initials(for: "jordan@example.com"), "J")
+        XCTAssertEqual(Player.initials(for: "sam.lee@mail.com"), "SL")
         XCTAssertEqual(Player.initials(for: ""), "?")
         XCTAssertEqual(Player.initials(for: "42"), "?")
     }
@@ -16,6 +17,23 @@ final class AccountTests: XCTestCase {
     func testFirstName() {
         XCTAssertEqual(Player(id: "1", name: "Alex Rivera").firstName, "Alex")
         XCTAssertEqual(Player(id: "1", name: "Prince").firstName, "Prince")
+    }
+
+    func testEmailCheck() {
+        XCTAssertTrue(Player.looksLikeEmail("sam@mail.com"))
+        XCTAssertTrue(Player.looksLikeEmail(" sam.lee@mail.co.uk "))
+        XCTAssertFalse(Player.looksLikeEmail("sam@mail"))
+        XCTAssertFalse(Player.looksLikeEmail("sam mail.com"))
+        XCTAssertFalse(Player.looksLikeEmail("@mail.com"))
+        XCTAssertFalse(Player.looksLikeEmail("sam@@mail.com"))
+        XCTAssertFalse(Player.looksLikeEmail("sam@mail..com"))
+        XCTAssertFalse(Player.looksLikeEmail(""))
+    }
+
+    func testCleanCode() {
+        XCTAssertEqual(Player.cleanCode("123 456"), "123456")
+        XCTAssertEqual(Player.cleanCode("Code: 98-76-54"), "987654")
+        XCTAssertEqual(Player.cleanCode("12345678901234"), "1234567890")
     }
 
     func testConfigNeedsARealProjectAndAPublicKey() {

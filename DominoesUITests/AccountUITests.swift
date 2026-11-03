@@ -1,7 +1,7 @@
 import XCTest
 
-/// Signing in with Google, on a pretend account server (-mockAccount), since
-/// the checks have no Google account. Takes the sign-in screenshots and checks
+/// Signing in with Google or an emailed code, on a pretend account server
+/// (-mockAccount), since the checks have no Google account or inbox. Takes the sign-in screenshots and checks
 /// that everything fits on the screen and the game still plays signed out.
 final class AccountUITests: XCTestCase {
     override func setUp() {
@@ -27,7 +27,7 @@ final class AccountUITests: XCTestCase {
         let google = app.buttons["sign-in-google"]
         XCTAssertTrue(google.waitForExistence(timeout: 5), "The sign-in page should offer Google")
         sleep(1)
-        assertOnScreen(app, ["sign-in-google", "not-now", "account-close"])
+        assertOnScreen(app, ["sign-in-google", "send-code", "not-now", "account-close"])
         capture("12-sign-in")
 
         google.tap()
@@ -48,6 +48,52 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(signOut.waitForExistence(timeout: 5))
         signOut.tap()
         XCTAssertTrue(google.waitForExistence(timeout: 5), "Signing out should offer Google again")
+    }
+
+    /// Email sign-in for people without Google: the address, a code by
+    /// email (a wrong one is refused), then signed in.
+    @MainActor
+    func testSignInWithEmail() {
+        let app = launch(["-mockAccount"])
+        let badge = app.buttons["account"]
+        XCTAssertTrue(badge.waitForExistence(timeout: 20))
+        badge.tap()
+
+        let field = app.textFields["email-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "The sign-in page should offer email")
+        let send = app.buttons["send-code"]
+        XCTAssertFalse(send.isEnabled, "No code without an email address")
+        field.tap()
+        field.typeText("sam.lee@example.com")
+        XCTAssertTrue(send.isEnabled)
+        capture("21-email-address")
+        send.tap()
+
+        let codeField = app.textFields["code-field"]
+        XCTAssertTrue(codeField.waitForExistence(timeout: 5), "After sending, it should ask for the code")
+        XCTAssertEqual(app.staticTexts["code-sent-to"].label, "Enter the code sent to sam.lee@example.com.")
+        let verify = app.buttons["verify-code"]
+        XCTAssertFalse(verify.isEnabled, "No sign-in before six digits")
+        codeField.tap()
+        codeField.typeText("000000")
+        verify.tap()
+        XCTAssertTrue(app.staticTexts["account-problem"].waitForExistence(timeout: 5), "A wrong code should be refused")
+
+        app.buttons["resend-code"].tap()
+        XCTAssertTrue(app.staticTexts["account-problem"].waitForNonExistence(timeout: 5))
+        sleep(1)
+        codeField.tap()
+        codeField.typeText("123456")
+        capture("22-email-code")
+        verify.tap()
+
+        XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5), "The right code should sign in")
+        XCTAssertEqual(app.staticTexts["account-name"].label, "sam.lee@example.com")
+        sleep(1)
+        capture("23-email-signed-in")
+        app.buttons["account-close"].tap()
+        XCTAssertTrue(badge.waitForExistence(timeout: 5))
+        XCTAssertEqual(badge.label, "Account, signed in as sam.lee@example.com")
     }
 
     /// Delete Account asks first, then signs out.
@@ -91,7 +137,7 @@ final class AccountUITests: XCTestCase {
         let google = app.buttons["sign-in-google"]
         XCTAssertTrue(google.waitForExistence(timeout: 5))
         sleep(1)
-        assertOnScreen(app, ["sign-in-google", "not-now", "account-close"])
+        assertOnScreen(app, ["sign-in-google", "send-code", "not-now", "account-close"])
         capture("16-sideways-sign-in")
         google.tap()
         XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5))
@@ -114,6 +160,17 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(google.waitForExistence(timeout: 5))
         sleep(1)
         capture("18-open-duo-sign-in")
+
+        // The code step, then back to Google.
+        let field = app.textFields["email-field"]
+        field.tap()
+        field.typeText("sam.lee@example.com")
+        app.buttons["send-code"].tap()
+        XCTAssertTrue(app.textFields["code-field"].waitForExistence(timeout: 5))
+        sleep(1)
+        capture("18b-open-duo-email-code")
+        app.buttons["change-email"].tap()
+        XCTAssertTrue(google.waitForExistence(timeout: 5))
         google.tap()
         XCTAssertTrue(app.buttons["sign-out"].waitForExistence(timeout: 5))
         sleep(1)
