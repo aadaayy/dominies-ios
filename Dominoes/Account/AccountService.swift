@@ -16,6 +16,15 @@ protocol AccountService: AnyObject {
     func signIn(email: String, password: String) async throws -> Player
     /// The name and picture saved in the player's profile, if it loads.
     func refreshProfile() async -> Player?
+    /// The name friends see in games, on the account and in invites.
+    func setName(_ name: String) async throws -> Player
+    /// Uploads a picture (a square JPEG, already cropped and shrunk) and
+    /// makes it the player's picture.
+    func setPicture(jpeg: Data) async throws -> Player
+    /// Back to the photo from their Google account.
+    func useGooglePicture() async throws -> Player
+    /// No picture: their initials show instead.
+    func removePicture() async throws -> Player
     func signOut() async
     /// Deletes the account and its profile, then signs out.
     func deleteAccount() async throws
@@ -31,6 +40,7 @@ enum AccountError: LocalizedError, Equatable {
     case emailSignUpOff
     case confirmEmailOn
     case tooManyTries
+    case pictureNotSetUp
     case failed(String)
 
     var errorDescription: String? {
@@ -44,6 +54,7 @@ enum AccountError: LocalizedError, Equatable {
         case .emailSignUpOff: "Email accounts are turned off right now. Use Google for now."
         case .confirmEmailOn: "Your account is made, but it needs its email confirmed before you can sign in."
         case .tooManyTries: "Too many tries just now. Wait a minute and try again."
+        case .pictureNotSetUp: "Pictures aren't set up on the server yet. Your name still saves."
         case .failed(let message): message
         }
     }

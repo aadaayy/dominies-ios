@@ -81,7 +81,87 @@ final class SupabaseAccountService: AccountService {
             .execute()
             .value {
             if !row.display_name.isEmpty { player.name = row.display_name }
-            if let link = row.avatar_url.flatMap(URL.init(string:)) { player.avatarURL = link }
+            // The profile decides: a chosen picture, the Google photo, or
+            // none at all when they removed it.
+            player.avatarURL = row.avatar_url.flatMap(URL.init(string:))
+        }
+        return player
+    }
+
+    // MARK: - Name and picture
+
+    /// Pictures live in the public "avatars" bucket, in a folder named after
+    /// the account (supabase/migrations/20261104020000_profile_pictures.sql).
+    private static let bucket = "avatars"
+
+    /// The player's folder in the bucket. Lowercase, as the database writes ids.
+    private func folder() throws -> String {
+        guard let user = client.auth.currentUser else { throw AccountError.failed("You're signed out. Sign in and try again.") }
+        return user.id.uuidString.lowercased()
+    }
+
+    func setName(_ name: String) async throws -> Player {
+        let folder = try folder()
+        let clean = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(OnlineJSON.nameLimit))
+        do {
+            try await client.from("profiles")
+                .update(["display_name": clean])
+                .eq("id", value: folder)
+                .execute()
+        } catch {
+            throw Self.friendly(error, saving: "Your name wasn't saved. Try again.")
+        }
+        return try await freshProfile()
+    }
+
+    func setPicture(jpeg: Data) async throws -> Player {
+        let folder = try folder()
+        // A new file name each time, so phones never show an old copy.
+        let path = "\(folder)/\(UUID().uuidString.lowercased()).jpg"
+        do {
+            try await client.storage.from(Self.bucket).upload(
+                path, data: jpeg,
+                options: FileOptions(cacheControl: "31536000", contentType: "image/jpeg", upsert: false))
+            try await client.rpc("set_my_picture", params: ["p_picture": AnyJSON.string(path)]).execute()
+        } catch {
+            throw Self.friendly(error, saving: "Your picture wasn't saved. Try again.")
+        }
+        await removePictures(in: folder, keeping: path)
+        return try await freshProfile()
+    }
+
+    func useGooglePicture() async throws -> Player {
+        try await choosePicture("google")
+    }
+
+    func removePicture() async throws -> Player {
+        try await choosePicture(nil)
+    }
+
+    private func choosePicture(_ choice: String?) async throws -> Player {
+        let folder = try folder()
+        do {
+            try await client.rpc("set_my_picture", params: ["p_picture": choice.map(AnyJSON.string) ?? .null]).execute()
+        } catch {
+            throw Self.friendly(error, saving: "Your picture wasn't changed. Try again.")
+        }
+        await removePictures(in: folder)
+        return try await freshProfile()
+    }
+
+    /// Clears out pictures the player no longer uses, so the project's free
+    /// storage isn't spent on them. Nothing to say if it fails: they're
+    /// tidied up the next time.
+    private func removePictures(in folder: String, keeping current: String? = nil) async {
+        let bucket = client.storage.from(Self.bucket)
+        guard let files = try? await bucket.list(path: folder) else { return }
+        let old = files.map { "\(folder)/\($0.name)" }.filter { $0 != current }
+        if !old.isEmpty { _ = try? await bucket.remove(paths: old) }
+    }
+
+    private func freshProfile() async throws -> Player {
+        guard let player = await refreshProfile() else {
+            throw AccountError.failed("You're signed out. Sign in and try again.")
         }
         return player
     }
@@ -91,6 +171,8 @@ final class SupabaseAccountService: AccountService {
     }
 
     func deleteAccount() async throws {
+        // Their pictures go too (the database can't remove stored files itself).
+        if let folder = try? folder() { await removePictures(in: folder) }
         do {
             try await client.rpc("delete_my_account").execute()
         } catch {
@@ -104,7 +186,31 @@ final class SupabaseAccountService: AccountService {
         let name = metadata["full_name"]?.stringValue ?? metadata["name"]?.stringValue ?? user.email ?? "Player"
         let picture = (metadata["avatar_url"]?.stringValue ?? metadata["picture"]?.stringValue).flatMap(URL.init(string:))
         let method = user.appMetadata["provider"]?.stringValue == "email" ? "email" : "google"
-        return Player(id: user.id.uuidString, name: name, email: user.email, avatarURL: picture, signInMethod: method)
+        return Player(id: user.id.uuidString, name: name, email: user.email, avatarURL: picture, signInMethod: method,
+                      googlePictureURL: method == "google" ? picture : nil)
+    }
+
+    /// A problem saving the name or picture, in plain words.
+    private static func friendly(_ error: Error, saving fallback: String) -> Error {
+        if let error = error as? AccountError { return error }
+        if (error as? URLError) != nil {
+            return AccountError.failed("No connection. Check your signal and try again.")
+        }
+        let text = "\(error)"
+        // The bucket or the set_my_picture function isn't there yet: the
+        // SQL in supabase/migrations/20261104020000_profile_pictures.sql
+        // hasn't been run on the project.
+        if text.localizedCaseInsensitiveContains("bucket not found")
+            || text.contains("PGRST202") || text.localizedCaseInsensitiveContains("could not find the function") {
+            return AccountError.pictureNotSetUp
+        }
+        if text.contains("no_google_picture") {
+            return AccountError.failed("Your Google account has no photo to use.")
+        }
+        if text.localizedCaseInsensitiveContains("exceeded the maximum allowed size") {
+            return AccountError.failed("That picture is too big. Try another.")
+        }
+        return AccountError.failed(fallback)
     }
 
     private static func friendly(_ error: Error, signingUp: Bool = false) -> Error {

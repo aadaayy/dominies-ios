@@ -1,10 +1,12 @@
+import PhotosUI
 import SwiftUI
 
 /// The account page, opened from the badge on Home. Signed out it offers
 /// Continue with Google, or an email and password for people without a
 /// Google account (make one, or sign in to one); signed in it shows the
-/// player and lets them sign out or delete the account. Playing never needs
-/// an account.
+/// player and lets them change their name and picture (whichever way they
+/// signed in), sign out or delete the account. Playing never needs an
+/// account.
 struct AccountView: View {
     var onClose: () -> Void
 
@@ -17,6 +19,19 @@ struct AccountView: View {
     @State private var password = ""
     @State private var showingPassword = false
     @FocusState private var focus: Field?
+    // Name and picture.
+    @State private var editingName = false
+    @State private var draftName = ""
+    @State private var pickingPhoto = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var framing: Framing?
+    @State private var savingPicture = false
+
+    /// A photo from the library, waiting to be framed.
+    private struct Framing: Identifiable {
+        let id = UUID()
+        let image: UIImage
+    }
 
     private enum Field { case email, password }
 
@@ -81,6 +96,43 @@ struct AccountView: View {
         } message: {
             Text("Your Dominoes account and profile are removed for good. You can still play, and you can make a new account any time.")
         }
+        .alert("Your name", isPresented: $editingName) {
+            TextField("Name", text: $draftName)
+                .textContentType(.name)
+                .textInputAutocapitalization(.words)
+                .accessibilityIdentifier("name-edit-field")
+            Button("Save") {
+                let chosen = draftName
+                run { try await account.setName(chosen) }
+            }
+            .accessibilityIdentifier("name-edit-save")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Friends see this name in games and invites. Up to \(OnlineJSON.nameLimit) characters.")
+        }
+        .photosPicker(isPresented: $pickingPhoto, selection: $photoItem, matching: .images, preferredItemEncoding: .compatible)
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            photoItem = nil
+            Task {
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      let photo = UIImage(data: data) else {
+                    problem = "That photo didn't open. Try another."
+                    return
+                }
+                framing = Framing(image: Pictures.prepare(photo))
+            }
+        }
+        .fullScreenCover(item: $framing) { framing in
+            PictureCropView(image: framing.image, onCancel: { self.framing = nil }) { picture in
+                self.framing = nil
+                savingPicture = true
+                run {
+                    defer { savingPicture = false }
+                    try await account.setPicture(picture)
+                }
+            }
+        }
     }
 
     // MARK: - Parts
@@ -89,7 +141,7 @@ struct AccountView: View {
     private var header: some View {
         if let player = account.player {
             VStack(spacing: 12) {
-                AvatarView(player: player, size: 84)
+                avatarButton(player)
                 VStack(spacing: 4) {
                     Text(player.name)
                         .font(.title2.weight(.bold))
@@ -137,7 +189,29 @@ struct AccountView: View {
     @ViewBuilder
     private func actions(compact: Bool) -> some View {
         VStack(spacing: compact ? 8 : 12) {
-            if account.player != nil {
+            if let player = account.player {
+                VStack(spacing: 0) {
+                    row(player.hasName ? "Change Name" : "Add Your Name", systemImage: "pencil", id: "change-name") {
+                        draftName = player.hasName ? player.name : ""
+                        problem = nil
+                        editingName = true
+                    }
+                    Divider().padding(.leading, 52)
+                    if hasPictureChoices(player) {
+                        Menu {
+                            pictureChoices(for: player)
+                        } label: {
+                            rowLabel("Change Picture", systemImage: "camera")
+                        }
+                        .menuStyle(.button)
+                        .buttonStyle(.plain)
+                        .disabled(working)
+                        .accessibilityIdentifier("change-picture")
+                    } else {
+                        row("Add a Picture", systemImage: "camera", id: "change-picture") { choosePhoto() }
+                    }
+                }
+                .glassPanel(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 VStack(spacing: 0) {
                     row("Sign Out", systemImage: "rectangle.portrait.and.arrow.right", id: "sign-out") {
                         run { await account.signOut() }
@@ -328,20 +402,108 @@ struct AccountView: View {
     private func row(_ title: String, systemImage: String, id: String, destructive: Bool = false,
                      action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: systemImage)
-                    .frame(width: 22)
-                Text(title)
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(destructive ? Color.red : Color.primary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
+            rowLabel(title, systemImage: systemImage, destructive: destructive)
         }
         .buttonStyle(.plain)
         .disabled(working)
         .accessibilityIdentifier(id)
+    }
+
+    private func rowLabel(_ title: String, systemImage: String, destructive: Bool = false) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: systemImage)
+                .frame(width: 22)
+            Text(title)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(destructive ? Color.red : Color.primary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+    }
+
+    // MARK: - Picture
+
+    /// The picture at the top, with a small camera on it: tap to change it.
+    @ViewBuilder
+    private func avatarButton(_ player: Player) -> some View {
+        let picture = AvatarView(player: player, size: 84)
+            .overlay {
+                if savingPicture {
+                    Circle().fill(.black.opacity(0.35))
+                    ProgressView().tint(.white)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 28, height: 28)
+                    .glassPanel(Circle())
+                    .offset(x: 2, y: 2)
+            }
+        Group {
+            if hasPictureChoices(player) {
+                Menu {
+                    pictureChoices(for: player)
+                } label: {
+                    picture
+                }
+                .menuStyle(.button)
+            } else {
+                Button(action: choosePhoto) { picture }
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(working)
+        .accessibilityIdentifier("avatar-picture")
+        .accessibilityLabel("Change picture")
+    }
+
+    /// More than Choose Photo to offer: their Google photo, or removing it.
+    private func hasPictureChoices(_ player: Player) -> Bool {
+        player.avatarURL != nil || canUseGoogle(player)
+    }
+
+    private func canUseGoogle(_ player: Player) -> Bool {
+        player.googlePictureURL != nil && player.avatarURL != player.googlePictureURL
+    }
+
+    @ViewBuilder
+    private func pictureChoices(for player: Player) -> some View {
+        Button {
+            choosePhoto()
+        } label: {
+            Label("Choose Photo", systemImage: "photo.on.rectangle")
+        }
+        if canUseGoogle(player) {
+            Button {
+                run { try await account.useGooglePicture() }
+            } label: {
+                Label("Use Google Photo", systemImage: "arrow.uturn.backward.circle")
+            }
+        }
+        if player.avatarURL != nil {
+            Button(role: .destructive) {
+                run { try await account.removePicture() }
+            } label: {
+                Label("Remove Photo", systemImage: "trash")
+            }
+        }
+    }
+
+    /// The photo library (no permission needed: the player picks one photo
+    /// and only that one reaches the app), then framing it.
+    private func choosePhoto() {
+        problem = nil
+        #if DEBUG
+        // The checks have no photo library: a drawn photo stands in.
+        if ProcessInfo.processInfo.arguments.contains("-mockLibraryPhoto") {
+            framing = Framing(image: Pictures.prepare(MockPictures.libraryPhoto))
+            return
+        }
+        #endif
+        pickingPhoto = true
     }
 
     private var closeButton: some View {
@@ -400,8 +562,8 @@ struct AccountBadge: View {
     }
 }
 
-/// A round picture: the player's Google photo, or their initials on a soft
-/// blue disc while it loads or when there's none.
+/// A round picture: the one they chose or their Google photo, or their
+/// initials on a soft blue disc while it loads or when there's none.
 struct AvatarView: View {
     let player: Player
     var size: CGFloat
@@ -409,7 +571,9 @@ struct AvatarView: View {
     var body: some View {
         ZStack {
             initials
-            if let url = player.avatarURL {
+            if let url = player.avatarURL, let image = AvatarCache.image(for: url) {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else if let url = player.avatarURL {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
                         image.resizable().scaledToFill()

@@ -51,6 +51,10 @@ final class MockOnlineService: OnlineService {
     }
 
     private var name: String?
+    /// The picture on the pretend account, as the real server would send it.
+    private var myPicture: URL?
+    /// Tells the pretend account when the name is chosen here.
+    var onNameChange: (@MainActor (String) -> Void)?
     private var friends: [Person]
     private var invites: [(game: String, from: String)] = []
     private var tables: [String: Table] = [:]
@@ -100,15 +104,15 @@ final class MockOnlineService: OnlineService {
                     isHost: table.host == Self.me.id,
                     yourTurn: (table.phase == .playing && table.game?.current == seat)
                         || (table.phase == .choosing && table.match.openingTeam.rawValue == seat % 2),
-                    players: table.seats.compactMap { $0 }.filter { $0 != Self.me.id }.map(Self.name(of:)),
+                    players: table.seats.compactMap { $0 }.filter { $0 != Self.me.id }.map { self.displayName(of: $0) },
                     invited: table.invited,
                     score: [table.match.score(of: .us), table.match.score(of: .them)],
                     mySeat: seat)
             }
         let open = invites.compactMap { invite -> OnlineInvite? in
             guard let table = tables[invite.game], table.phase == .lobby, !table.seats.contains(Self.me.id) else { return nil }
-            return OnlineInvite(gameId: table.id, code: table.code, from: Self.name(of: invite.from), fromPicture: nil,
-                                players: table.seats.compactMap { $0 }.map(Self.name(of:)))
+            return OnlineInvite(gameId: table.id, code: table.code, from: displayName(of: invite.from), fromPicture: nil,
+                                players: table.seats.compactMap { $0 }.map { self.displayName(of: $0) })
         }
         return OnlineHome(name: name, friendCode: Self.me.code,
                           friends: friends.sorted { $0.name < $1.name }.map { OnlineFriend(id: $0.id, name: $0.name, picture: nil) },
@@ -117,7 +121,16 @@ final class MockOnlineService: OnlineService {
 
     func setName(_ name: String) async throws {
         try await Task.sleep(for: .milliseconds(150))
-        self.name = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(OnlineJSON.nameLimit))
+        let clean = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(OnlineJSON.nameLimit))
+        self.name = clean
+        onNameChange?(clean)
+        changed()
+    }
+
+    /// The account's name or picture changed: one profile, as on the server.
+    func mirror(_ player: Player) {
+        if player.hasName { name = player.name }
+        myPicture = player.avatarURL
         changed()
     }
 
@@ -305,8 +318,9 @@ final class MockOnlineService: OnlineService {
 
     private func mySeat(_ table: Table) -> Int { table.seats.firstIndex(of: Self.me.id) ?? 0 }
 
-    private static func name(of id: String) -> String {
-        everyone.first { $0.id == id }?.name ?? "Player"
+    private func displayName(of id: String) -> String {
+        if id == Self.me.id, let name { return name }
+        return Self.everyone.first { $0.id == id }?.name ?? "Player"
     }
 
     private func bump(_ table: Table) {
@@ -430,7 +444,8 @@ final class MockOnlineService: OnlineService {
             turnSeconds: stalled ? 90 : Int(Date().timeIntervalSince(table.turnStarted)),
             seats: (0..<4).map { index in
                 let id = table.seats[index]
-                return OnlineSeat(seat: index, name: id.map(Self.name(of:)), picture: nil, person: id != nil,
+                return OnlineSeat(seat: index, name: id.map { self.displayName(of: $0) },
+                                  picture: id == Self.me.id ? myPicture : nil, person: id != nil,
                                   you: id == Self.me.id, host: id == table.host)
             },
             hand: (game?.hands[seat] ?? []).map(OnlineJSON.pair))

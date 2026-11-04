@@ -6,10 +6,25 @@ struct Player: Equatable {
     var id: String
     var name: String
     var email: String?
-    /// Their Google picture, if they have one. Initials show otherwise.
+    /// The picture others see: one they chose, their Google photo, or none
+    /// (initials show instead).
     var avatarURL: URL?
     /// How they signed in: "google" or "email".
     var signInMethod: String = "google"
+    /// The photo on their Google account, so they can go back to it after
+    /// choosing another. Nil for email accounts.
+    var googlePictureURL: URL?
+
+    /// Biggest side, in pixels, of a picture they choose: crisp at every size
+    /// the app draws it, and only about 50 KB as a JPEG.
+    static let pictureSize = 512
+
+    /// False while an email account still goes by its address (no name
+    /// chosen yet).
+    var hasName: Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        return !trimmed.isEmpty && trimmed != email
+    }
 
     /// Up to two letters for the round badge when there's no picture:
     /// "Alex Rivera" is AR, "Prince" is P, "sam.lee@mail.com" is SL.

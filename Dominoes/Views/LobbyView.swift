@@ -286,10 +286,18 @@ struct LobbyView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.color(for: team))
             }
-            Text(name)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-                .foregroundStyle(person || local == 0 ? .primary : .secondary)
+            HStack(spacing: 5) {
+                // Their picture (or initials), as on their account.
+                if person {
+                    AvatarView(player: Player(id: seat?.name ?? "", name: seat?.name ?? "Player", email: nil,
+                                              avatarURL: seat?.picture), size: 20)
+                }
+                Text(name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .foregroundStyle(person || local == 0 ? .primary : .secondary)
+            }
+            .padding(.horizontal, 6)
             if person {
                 Text(seat?.host == true ? "Host" : (team == .us ? "Your partner" : "Other team"))
                     .font(.caption2)

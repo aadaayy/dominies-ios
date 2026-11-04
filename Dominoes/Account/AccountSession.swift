@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// Who's signed in, for the whole app. Signing in is optional: the game plays
 /// the same without an account.
@@ -25,8 +26,14 @@ final class AccountSession {
         #if DEBUG
         if arguments.contains("-mockAccount") || arguments.contains("-mockOnline") {
             let signedIn = arguments.contains("-mockSignedIn") || arguments.contains("-mockOnline")
-            return AccountSession(service: MockAccountService(signedIn: signedIn),
-                                  online: MockOnlineService(arguments: arguments))
+            let account = MockAccountService(signedIn: signedIn)
+            let online = MockOnlineService(arguments: arguments)
+            // One profile, as on the real server: a name or picture changed
+            // on either side shows on the other.
+            if let me = account.currentPlayer() { online.mirror(me) }
+            account.onChange = { [weak online] in online?.mirror($0) }
+            online.onNameChange = { [weak account] in account?.nameChangedOnline($0) }
+            return AccountSession(service: account, online: online)
         }
         #endif
         guard let config = AccountConfig.load() else { return AccountSession(service: nil) }
@@ -58,6 +65,35 @@ final class AccountSession {
 
     private static func clean(_ email: String) -> String {
         email.trimmingCharacters(in: .whitespaces).lowercased()
+    }
+
+    // MARK: - Name and picture
+
+    /// The name friends see, everywhere: account, lobbies, games and invites.
+    func setName(_ name: String) async throws {
+        guard let service else { throw AccountError.notSetUp }
+        if let problem = OnlineJSON.nameProblem(name) { throw AccountError.failed(problem) }
+        player = try await service.setName(name)
+    }
+
+    /// A picture they framed, uploaded as a small square JPEG.
+    func setPicture(_ picture: UIImage) async throws {
+        guard let service else { throw AccountError.notSetUp }
+        guard let jpeg = Pictures.jpeg(picture) else { throw AccountError.failed("That picture didn't work. Try another.") }
+        let fresh = try await service.setPicture(jpeg: jpeg)
+        // Shows at once, without loading it back.
+        if let url = fresh.avatarURL { AvatarCache.store(picture, for: url) }
+        player = fresh
+    }
+
+    func useGooglePicture() async throws {
+        guard let service else { throw AccountError.notSetUp }
+        player = try await service.useGooglePicture()
+    }
+
+    func removePicture() async throws {
+        guard let service else { throw AccountError.notSetUp }
+        player = try await service.removePicture()
     }
 
     func signOut() async {

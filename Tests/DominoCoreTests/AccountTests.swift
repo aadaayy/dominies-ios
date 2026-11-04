@@ -19,6 +19,14 @@ final class AccountTests: XCTestCase {
         XCTAssertEqual(Player(id: "1", name: "Prince").firstName, "Prince")
     }
 
+    func testHasName() {
+        // An email account goes by its address until a name is chosen.
+        XCTAssertFalse(Player(id: "1", name: "sam@mail.com", email: "sam@mail.com").hasName)
+        XCTAssertFalse(Player(id: "1", name: "  ", email: "sam@mail.com").hasName)
+        XCTAssertTrue(Player(id: "1", name: "Sam Lee", email: "sam@mail.com").hasName)
+        XCTAssertTrue(Player(id: "1", name: "Al", email: nil).hasName)
+    }
+
     func testEmailCheck() {
         XCTAssertTrue(Player.looksLikeEmail("sam@mail.com"))
         XCTAssertTrue(Player.looksLikeEmail(" sam.lee@mail.co.uk "))

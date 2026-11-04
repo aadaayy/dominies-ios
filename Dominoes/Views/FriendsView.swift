@@ -440,7 +440,11 @@ struct FriendsView: View {
         guard OnlineJSON.nameProblem(name) == nil else { return }
         let chosen = name
         focus = nil
-        Task { await model.run { try await $0.setName(chosen) } }
+        Task {
+            await model.run { try await $0.setName(chosen) }
+            // Same name on the account page.
+            await account.refresh()
+        }
     }
 
     // MARK: - Words
