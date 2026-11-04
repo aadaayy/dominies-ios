@@ -155,7 +155,7 @@ final class SupabaseAccountService: AccountService {
     private func removePictures(in folder: String, keeping current: String? = nil) async {
         let bucket = client.storage.from(Self.bucket)
         guard let files = try? await bucket.list(path: folder) else { return }
-        let old = files.map { "\(folder)/\($0.name)" }.filter { $0 != current }
+        let old: [String] = files.map { file -> String in "\(folder)/\(file.name)" }.filter { path in path != current }
         if !old.isEmpty { _ = try? await bucket.remove(paths: old) }
     }
 
