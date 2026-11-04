@@ -30,7 +30,7 @@ final class AccountSession {
             let online = MockOnlineService(arguments: arguments)
             // One profile, as on the real server: a name or picture changed
             // on either side shows on the other.
-            if let me = account.currentPlayer() { online.mirror(me) }
+            if let me = account.currentPlayer() { online.mirror(me, includingName: false) }
             account.onChange = { [weak online] in online?.mirror($0) }
             online.onNameChange = { [weak account] in account?.nameChangedOnline($0) }
             return AccountSession(service: account, online: online)

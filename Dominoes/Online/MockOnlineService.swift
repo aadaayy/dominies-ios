@@ -128,8 +128,10 @@ final class MockOnlineService: OnlineService {
     }
 
     /// The account's name or picture changed: one profile, as on the server.
-    func mirror(_ player: Player) {
-        if player.hasName { name = player.name }
+    /// At launch only the picture is copied, so -mockNoName still starts
+    /// without a name.
+    func mirror(_ player: Player, includingName: Bool = true) {
+        if includingName, player.hasName { name = player.name }
         myPicture = player.avatarURL
         changed()
     }
