@@ -496,14 +496,19 @@ struct AccountView: View {
     /// and only that one reaches the app), then framing it.
     private func choosePhoto() {
         problem = nil
-        #if DEBUG
-        // The checks have no photo library: a drawn photo stands in.
-        if ProcessInfo.processInfo.arguments.contains("-mockLibraryPhoto") {
-            framing = Framing(image: Pictures.prepare(MockPictures.libraryPhoto))
-            return
+        Task {
+            // Let the picture menu finish closing first, or the next screen
+            // can't open over it.
+            try? await Task.sleep(for: .milliseconds(400))
+            #if DEBUG
+            // The checks have no photo library: a drawn photo stands in.
+            if ProcessInfo.processInfo.arguments.contains("-mockLibraryPhoto") {
+                framing = Framing(image: Pictures.prepare(MockPictures.libraryPhoto))
+                return
+            }
+            #endif
+            pickingPhoto = true
         }
-        #endif
-        pickingPhoto = true
     }
 
     private var closeButton: some View {

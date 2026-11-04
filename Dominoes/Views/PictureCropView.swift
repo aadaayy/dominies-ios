@@ -40,6 +40,27 @@ struct PictureCropView: View {
                     .strokeBorder(.white.opacity(0.85), lineWidth: 1)
                     .frame(width: side, height: side)
                     .allowsHitTesting(false)
+                // Drags and pinches land here; the buttons above still get their taps.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                offset = clamped(CGSize(width: lastOffset.width + value.translation.width,
+                                                        height: lastOffset.height + value.translation.height),
+                                                 side: side, fill: fill)
+                            }
+                            .onEnded { _ in lastOffset = offset }
+                            .simultaneously(with: MagnifyGesture()
+                                .onChanged { value in
+                                    scale = min(max(lastScale * value.magnification, 1), maxScale)
+                                    offset = clamped(offset, side: side, fill: fill)
+                                }
+                                .onEnded { _ in
+                                    lastScale = scale
+                                    lastOffset = offset
+                                })
+                    )
                 VStack(spacing: 0) {
                     topBar(side: side, fill: fill)
                     Spacer(minLength: 0)
@@ -47,29 +68,10 @@ struct PictureCropView: View {
                         .font(.footnote)
                         .foregroundStyle(.white.opacity(0.75))
                         .frame(height: barHeight)
+                        .allowsHitTesting(false)
                 }
             }
             .frame(width: size.width, height: size.height)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        offset = clamped(CGSize(width: lastOffset.width + value.translation.width,
-                                                height: lastOffset.height + value.translation.height),
-                                         side: side, fill: fill)
-                    }
-                    .onEnded { _ in lastOffset = offset }
-                    .simultaneously(with: MagnifyGesture()
-                        .onChanged { value in
-                            scale = min(max(lastScale * value.magnification, 1), maxScale)
-                            offset = clamped(offset, side: side, fill: fill)
-                        }
-                        .onEnded { _ in
-                            lastScale = scale
-                            lastOffset = offset
-                        })
-            )
-            .accessibilityIdentifier("crop-area")
         }
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)

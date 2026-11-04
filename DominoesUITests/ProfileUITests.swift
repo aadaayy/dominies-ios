@@ -33,7 +33,7 @@ final class ProfileUITests: XCTestCase {
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 12) + "Big Al")
         sleep(1)
         capture("51-change-name")
-        alert.buttons["Save"].tap()
+        alert.buttons["Save"].firstMatch.tap()
         let name = app.staticTexts["account-name"]
         expectation(for: NSPredicate(format: "label == %@", "Big Al"), evaluatedWith: name)
         waitForExpectations(timeout: 5)
@@ -143,7 +143,7 @@ final class ProfileUITests: XCTestCase {
         XCTAssertTrue(["", "Name"].contains(empty.value as? String ?? ""), "No name to start from")
         empty.tap()
         empty.typeText("jordan@example.com")
-        alert.buttons["Save"].tap()
+        alert.buttons["Save"].firstMatch.tap()
         let problem = app.staticTexts["account-problem"]
         XCTAssertTrue(problem.waitForExistence(timeout: 5), "An email address isn't a name")
         XCTAssertTrue(problem.label.contains("not an email address"), problem.label)
@@ -153,7 +153,7 @@ final class ProfileUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 5))
         alert.textFields.firstMatch.tap()
         alert.textFields.firstMatch.typeText("Jordan Park")
-        alert.buttons["Save"].tap()
+        alert.buttons["Save"].firstMatch.tap()
         expectation(for: NSPredicate(format: "label == %@", "Jordan Park"), evaluatedWith: app.staticTexts["account-name"])
         waitForExpectations(timeout: 5)
         XCTAssertEqual(app.buttons["change-name"].label, "Change Name")
