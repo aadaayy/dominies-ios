@@ -2,11 +2,11 @@ import SwiftUI
 import UIKit
 
 /// Turning a photo from the library into a profile picture: upright, cropped
-/// to the square the player framed, shrunk to 512 by 512 and saved as a small
-/// JPEG (about 50 KB), so it uploads quickly and costs little storage.
+/// to the square the player framed, shrunk to 256 by 256 and saved as a small
+/// JPEG (about 15 KB), so it uploads quickly and costs little storage.
 enum Pictures {
     /// Largest side a photo is kept at while the player frames it. Plenty for
-    /// a 512 pixel picture after zooming in, and light on memory.
+    /// a 256 pixel picture after zooming in, and light on memory.
     static let workingSize: CGFloat = 2048
 
     /// The photo upright (phones save many photos turned, with a note to turn
@@ -38,10 +38,10 @@ enum Pictures {
         }
     }
 
-    /// The picture as JPEG, comfortably under the bucket's 1 MB limit.
+    /// The picture as JPEG, comfortably under the bucket's 256 KB limit.
     static func jpeg(_ picture: UIImage) -> Data? {
         for quality in [0.82, 0.7, 0.55] {
-            if let data = picture.jpegData(compressionQuality: quality), data.count < 900_000 { return data }
+            if let data = picture.jpegData(compressionQuality: quality), data.count < 200_000 { return data }
         }
         return nil
     }

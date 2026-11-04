@@ -12,7 +12,7 @@ Double Nine dominoes for iPhone Duo and regular iPhones, mainly with friends onl
 6. When a tile fits both ends, the two ends light up and you tap the one you want.
 7. Play upright or sideways. Upright (and on the folded Duo) your ten tiles sit in two rows of five; sideways (and on the open Duo) they sit in one row with the players on the left.
 8. Pinch the table to zoom in and drag to look around. After every tile played it zooms back out to the whole line.
-9. Accounts: the badge in Home's top corner opens Sign in, with Continue with Google, or an email and password for people without Google (Create Account, or Sign In to one made before). Signed in, the badge shows your Google picture (or initials), and the account page has Sign Out and Delete Account. Signing in is optional for playing the computer; playing with friends needs it.
+9. Accounts: the badge in Home's top corner opens Sign in, with Continue with Google, or an email and password for people without Google (Create Account, or Sign In to one made before). Signed in, the badge shows your Google picture (or initials), and the account page has Change Name, Change Picture (choose a photo and frame it in a circle, go back to the Google photo, or remove it), Sign Out and Delete Account. Friends see the same name and picture in lobbies and games. Signing in is optional for playing the computer; playing with friends needs it.
 10. Play with Friends (see Online games below): New game, Join with a six-letter game code, invites from friends, your games in progress, and friends added by their friend codes.
 
 ## How the code is laid out
@@ -44,7 +44,7 @@ You need a Mac with Xcode 27.1 or later. No simulator is needed.
 
 ## Accounts setup
 
-Accounts run on the Supabase project called **Dominoes** (free plan), kept apart from the golf app's project so the two apps never share players. The app already points at it in `Dominoes/Account/Accounts.plist` (the project URL and its publishable key, both safe in the app and on GitHub). The `profiles` table is made by `supabase/migrations/20261102201913_profiles.sql`, already applied: one row per player (Google or email) with their name and picture, which only they can see or change, plus Delete Account.
+Accounts run on the Supabase project called **Dominoes** (free plan), kept apart from the golf app's project so the two apps never share players. The app already points at it in `Dominoes/Account/Accounts.plist` (the project URL and its publishable key, both safe in the app and on GitHub). The `profiles` table is made by `supabase/migrations/20261102201913_profiles.sql`, already applied: one row per player (Google or email) with their name and picture, which only they can see or change, plus Delete Account. Pictures players choose are saved in a public storage bucket, `avatars`, made by `supabase/migrations/20261104020000_profile_pictures.sql`: 256 by 256 JPEGs, one folder per player, which only that player can add to or remove from.
 
 Google sign-in needs these clicks once:
 

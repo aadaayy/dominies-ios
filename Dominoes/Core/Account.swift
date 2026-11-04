@@ -15,9 +15,9 @@ struct Player: Equatable {
     /// choosing another. Nil for email accounts.
     var googlePictureURL: URL?
 
-    /// Biggest side, in pixels, of a picture they choose: crisp at every size
-    /// the app draws it, and only about 50 KB as a JPEG.
-    static let pictureSize = 512
+    /// Biggest side, in pixels, of a picture they choose: sharp at the sizes
+    /// the app draws it, and only about 15 KB as a JPEG.
+    static let pictureSize = 256
 
     /// False while an email account still goes by its address (no name
     /// chosen yet).

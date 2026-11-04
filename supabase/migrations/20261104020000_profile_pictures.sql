@@ -5,11 +5,11 @@
 -- Pictures live in a public storage bucket, "avatars", one folder per player
 -- (named after their account id), so friends' phones can show them in
 -- lobbies and games. The app crops each picture to a square, shrinks it to
--- 512 by 512 and saves it as a small JPEG before uploading.
+-- 256 by 256 and saves it as a small JPEG (about 15 KB) before uploading.
 
--- The bucket: public to read, JPEG only, 1 MB at most per picture.
+-- The bucket: public to read, JPEG only, 256 KB at most per picture.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('avatars', 'avatars', true, 1048576, array['image/jpeg'])
+values ('avatars', 'avatars', true, 262144, array['image/jpeg'])
 on conflict (id) do update
   set public = true,
       file_size_limit = excluded.file_size_limit,
