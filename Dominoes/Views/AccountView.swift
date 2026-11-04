@@ -435,11 +435,13 @@ struct AccountView: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
+                // Solid blue with a white ring, so it shows on any picture.
                 Image(systemName: "camera.fill")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.white)
                     .frame(width: 28, height: 28)
-                    .glassPanel(Circle())
+                    .background(Circle().fill(Color.accentColor))
+                    .overlay(Circle().strokeBorder(.white, lineWidth: 2))
                     .offset(x: 2, y: 2)
             }
         Group {
